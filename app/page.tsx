@@ -157,9 +157,20 @@ export default function Home() {
   function buildOrganizedData() {
     const found = syncParsed();
     const finalContact = { ...found, ...Object.fromEntries(Object.entries(contact).filter(([, v]) => v)) } as Contact;
-    if (!quienAsigna || !fuente || !producto || !agente || !crmAnterior) throw new Error("Faltan campos obligatorios de asignación/origen.");
-    if (!finalContact.nombre || finalContact.whatsapp.length !== 10 || !finalContact.cedula || !finalContact.ciudad) throw new Error("Revisa Datos del contacto: nombre, WhatsApp de 10 dígitos, cédula y ciudad son obligatorios.");
-    if (crmAnterior === "SI" && (!colorCrm || !contactoAsesor)) throw new Error("Si existe en CRM, falta color CRM o confirmar si el contacto es de ese asesor.");
+    const missing: string[] = [];
+    if (!quienAsigna) missing.push("Quién asignará");
+    if (!fuente) missing.push("Fuente");
+    if (!producto) missing.push("Producto / Interés");
+    if (!agente) missing.push("Agente");
+    if (!crmAnterior) missing.push("CRM Anterior");
+    if (!finalContact.nombre) missing.push("Nombre");
+    if (!finalContact.whatsapp) missing.push("WhatsApp");
+    else if (finalContact.whatsapp.length !== 10) missing.push("WhatsApp debe tener exactamente 10 dígitos");
+    if (!finalContact.cedula) missing.push("Cédula");
+    if (!finalContact.ciudad) missing.push("Ciudad");
+    if (crmAnterior === "SI" && !colorCrm) missing.push("Color CRM");
+    if (crmAnterior === "SI" && !contactoAsesor) missing.push("El contacto es de ese asesor");
+    if (missing.length) throw new Error(`Faltan estos datos: ${missing.join(", ")}.`);
     const productosEspeciales = ["Rejeunesse", "Pink Intimate System", "LusciousLips", "Hilos PDO", "Lapuroon"];
     const tieneFormulario = fuente.includes("Formulario");
     const finalProfesion = titleCase(profesion || cedula?.result?.carrera || "Por Definir");
