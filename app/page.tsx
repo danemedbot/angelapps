@@ -5,7 +5,6 @@ import { useMemo, useState } from "react";
 type Contact = { nombre: string; cedula: string; whatsapp: string; ciudad: string; correo: string };
 type CrmInfo = { cliente: "viejo" | "nuevo" | "desconocido"; valor?: number; raw?: Record<string, unknown> };
 type CedulaInfo = { result: null | { cedula?: string; nombre?: string; carrera?: string; universidad?: string; estado?: string; anio?: string }; source?: string; count?: number };
-type ReviewField = "nombre" | "profesion";
 type ResultRow = { mes: string; fecha: string; hora: string; fuente: string; nombre: string; whatsapp: string; ciudad: string; cedula: string; profesion: string; agente: string; quienAsigna: string; crmAnterior: string; colorCrm: string; contactoAsesor: string; interes: string };
 
 const emptyContact: Contact = { nombre: "", cedula: "", whatsapp: "", ciudad: "", correo: "" };
@@ -69,6 +68,7 @@ export default function Home() {
   const [crm, setCrm] = useState<CrmInfo | null>(null);
   const [cedula, setCedula] = useState<CedulaInfo | null>(null);
   const [reviewSource, setReviewSource] = useState<"capturado" | "oficial" | "">("");
+  const [professionSource, setProfessionSource] = useState<"capturado" | "oficial" | "">("");
   const [showProfessionModal, setShowProfessionModal] = useState(false);
   const [showCrmModal, setShowCrmModal] = useState(false);
   const [resultado, setResultado] = useState("");
@@ -130,6 +130,7 @@ export default function Home() {
 
   function usarCapturado() {
     setReviewSource("capturado");
+    setProfessionSource("capturado");
   }
 
   function usarOficial() {
@@ -137,6 +138,7 @@ export default function Home() {
     if (result?.nombre) setContact((c) => ({ ...c, nombre: result.nombre || c.nombre }));
     if (result?.carrera) setProfesion(result.carrera);
     setReviewSource("oficial");
+    setProfessionSource("oficial");
   }
 
   function mantenerAsignacion() {
@@ -173,7 +175,7 @@ export default function Home() {
     if (missing.length) throw new Error(`Faltan estos datos: ${missing.join(", ")}.`);
     const productosEspeciales = ["Rejeunesse", "Pink Intimate System", "LusciousLips", "Hilos PDO", "Lapuroon"];
     const tieneFormulario = fuente.includes("Formulario");
-    const finalProfesion = titleCase(profesion || cedula?.result?.carrera || "Por Definir");
+    const finalProfesion = titleCase(profesion || "Por Definir");
     const encabezado = tieneFormulario
       ? `*Contacto Campaña ${titleCase(producto)}*\n${fuente}`
       : productosEspeciales.includes(producto)
@@ -227,7 +229,7 @@ export default function Home() {
         <Field label="Fuente" required><select value={fuente} onChange={(e) => setFuente(e.target.value)}><option value="">-</option>{fuentes.map((item) => <option key={item}>{item}</option>)}</select></Field>
         <Field label="Producto / Interés" required><select value={producto} onChange={(e) => setProducto(e.target.value)}><option value="">-</option>{productos.map((item) => <option key={item}>{item}</option>)}</select></Field>
         <Field label="Datos del contacto" required><textarea value={datos} onChange={(e) => { setDatos(e.target.value); setContact(emptyContact); }} rows={7} placeholder={"Juan Pérez López\n12345678\n5512345678\nMonterrey, Nuevo León\ncorreo@ejemplo.com"} /></Field>
-        <div className="detected featured readonly"><h3>Detectado</h3>{activeContact.nombre && <DetectedValue label="Nombre" value={activeContact.nombre} />}{activeContact.cedula && <DetectedValue label="Cédula" value={activeContact.cedula} />}{activeContact.whatsapp && <DetectedValue label="WhatsApp" value={activeContact.whatsapp} />}{activeContact.ciudad && <DetectedValue label="Ciudad" value={activeContact.ciudad} />}{activeContact.correo && <DetectedValue label="Correo" value={activeContact.correo} />}{(profesion || cedula?.result?.carrera) && <DetectedValue label="Profesión" value={profesion || cedula?.result?.carrera || ""} highlighted />}{!activeContact.nombre && !activeContact.cedula && !activeContact.whatsapp && !activeContact.ciudad && !activeContact.correo && !(profesion || cedula?.result?.carrera) && <p className="detected-empty">Pega datos del contacto para detectar información.</p>}</div>
+        <div className="detected featured readonly"><h3>Detectado</h3>{activeContact.nombre && <DetectedValue label="Nombre" value={activeContact.nombre} />}{activeContact.cedula && <DetectedValue label="Cédula" value={activeContact.cedula} />}{activeContact.whatsapp && <DetectedValue label="WhatsApp" value={activeContact.whatsapp} />}{activeContact.ciudad && <DetectedValue label="Ciudad" value={activeContact.ciudad} />}{activeContact.correo && <DetectedValue label="Correo" value={activeContact.correo} />}{profesion && <DetectedValue label="Profesión" value={profesion} highlighted={professionSource === "oficial"} />}{!activeContact.nombre && !activeContact.cedula && !activeContact.whatsapp && !activeContact.ciudad && !activeContact.correo && !profesion && <p className="detected-empty">Pega datos del contacto para detectar información.</p>}</div>
         <div className="stacked-actions"><button className="primary" type="button" disabled={!!busy} onClick={buscarProfesion}>{busy === "profesion" ? "Buscando..." : "Buscar Profesión"}</button><button className="primary" type="button" disabled={!!busy} onClick={buscarCrm}>{busy === "crm" ? "Buscando..." : "Buscar CRM"}</button></div>
       </div>
       <div className="section-title second"><span>02</span><div><h2>Asignación CRM</h2><p>Campos derivados de la consulta CRM, respetando la operación actual.</p></div></div>
