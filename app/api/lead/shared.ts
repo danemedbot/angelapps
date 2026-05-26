@@ -77,6 +77,41 @@ function htmlText(html: string) {
     .trim();
 }
 
+function decodeHtml(value: string) {
+  return value
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#039;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripTags(value: string) {
+  return decodeHtml(value.replace(/<[^>]+>/g, " "));
+}
+
+function selectedOptionFromSelect(html: string, hints: string[]) {
+  const selects = [...html.matchAll(/<select\b[\s\S]*?<\/select>/gi)].map((m) => m[0]);
+  for (const select of selects) {
+    const haystack = stripTags(select).toLowerCase() + " " + select.toLowerCase();
+    if (!hints.some((hint) => haystack.includes(hint.toLowerCase()))) continue;
+    const selected = select.match(/<option\b(?=[^>]*\bselected\b)[^>]*>([\s\S]*?)<\/option>/i)?.[1];
+    if (selected) {
+      const cleaned = stripTags(selected);
+      if (cleaned && !/^seleccione/i.test(cleaned) && cleaned !== "-") return cleaned;
+    }
+  }
+  return "";
+}
+
+function nearestKnownValue(text: string, values: string[]) {
+  const normalized = ` ${text.toLowerCase().replace(/\s+/g, " ")} `;
+  return values.find((value) => normalized.includes(` ${value.toLowerCase()} `)) || "";
+}
+
 function parseCrmWebResult(html: string, mode: "telefono" | "cedula", query: string) {
   const text = htmlText(html);
   const countMatch = text.match(/Usuarios que coinciden con el parametro a buscar\s*\((\d+)\)/i);
@@ -84,22 +119,19 @@ function parseCrmWebResult(html: string, mode: "telefono" | "cedula", query: str
   const raw: Record<string, unknown> = { source: "consultarcliente-web", mode, query, count, text: text.slice(0, 6000) };
   if (count <= 0) return { count, raw };
 
-  const knownAgents = ["amairani", "amejia", "btostado", "zulay", "bperez2", "selene2", "DISTRITATI", "cristina", "diana", "marisa2", "micaela", "stefany", "moncho", "josecarlos", "katerin", "mariel", "daisy", "lupita", "juan", "pefa", "reison", "distribuidores"];
-  const knownColors = ["Contacto cafe CRM", "Contacto gris CRM", "Contacto verde claro CRM", "Contacto verde CRM", "Contacto amarillo CRM", "Contacto sin color CRM", "Contacto rosa CRM", "Contacto naranja CRM", "Contacto morado CRM", "Contacto azul CRM", "Contacto rojo CRM"];
-  const labelValue = (labels: string[]) => {
-    for (const label of labels) {
-      const rx = new RegExp(`${label}\s*:?\s*([A-Za-zÁÉÍÓÚÑáéíóúñ0-9._@ -]{2,60})`, "i");
-      const found = text.match(rx)?.[1]?.trim();
-      if (found && !/^(Nombre|Tel[eé]fono|Correo|C[eé]dula|CRM|Color)$/i.test(found)) return found;
-    }
-    return "";
-  };
-  const agentByLabel = labelValue(["Agente asignado", "Agente", "Asesor asignado", "Asesor", "Vendedor", "Usuario asignado"]);
-  const colorByLabel = labelValue(["Color CRM", "Color en CRM", "Color"]);
-  const agentByList = knownAgents.find((agent) => new RegExp(`(^|\s)${agent.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\s|$)`, "i").test(text));
-  const colorByList = knownColors.find((color) => text.toLowerCase().includes(color.toLowerCase()));
-  if (agentByLabel || agentByList) raw.agente = agentByLabel || agentByList;
-  if (colorByList || colorByLabel) raw.color = colorByList || colorByLabel;
+  const knownAgents = ["admin", "laprueba", "rgonzalez", "amairani", "amejia", "btostado", "zulay", "bperez2", "selene2", "DISTRITATI", "cristina", "diana", "marisa2", "micaela", "stefany", "moncho", "josecarlos", "katerin", "mariel", "daisy", "lupita", "juan", "pefa", "reison", "distribuidores"];
+  const knownColors = ["Contacto cafe CRM", "Contacto gris CRM", "Contacto verde claro CRM", "Contacto verde CRM", "Contacto amarillo CRM", "Contacto sin color CRM", "Contacto rosa CRM", "Contacto naranja CRM", "Contacto morado CRM", "Contacto azul CRM", "Contacto rojo CRM", "Verde - Me ha comprado", "Amarillo - Para seguimiento", "Rojo", "Azul", "Morado", "Naranja", "Rosa"];
+
+  // La página del CRM trae selects con todas las opciones; antes el parser tomaba el texto completo
+  // (“Seleccione un Valor admin laprueba…”). Solo aceptamos una opción marcada como selected,
+  // o un valor conocido claramente encontrado; nunca usamos capturas amplias por etiqueta.
+  const selectedAgent = selectedOptionFromSelect(html, ["agente", "asesor", "usuario", "admin", "laprueba", "rgonzalez", "katerin"]);
+  const selectedColor = selectedOptionFromSelect(html, ["color", "crm", "verde", "amarillo", "rojo", "azul"]);
+  const agent = selectedAgent || nearestKnownValue(text, knownAgents);
+  const color = selectedColor || knownColors.find((colorValue) => text.toLowerCase().includes(colorValue.toLowerCase())) || "";
+
+  if (agent) raw.agente = agent;
+  if (color) raw.color = color;
   return { count, raw };
 }
 
