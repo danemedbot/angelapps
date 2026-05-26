@@ -198,3 +198,11 @@ tbody tr.ultima-fila { background: rgba(106, 13, 173, 0.08); }
 .detected-row input { padding: 10px 12px; border-radius: 13px; font-size: 14px; }
 .detected-row.changed input { border-color: #12a150; box-shadow: 0 0 0 4px rgba(18, 161, 80, .13); color: #067647; background: #f0fdf4; font-weight: 800; }
 .detected-row.changed span { color: #067647; }
+
+/* Detectado solo lectura */
+.detected.readonly .detected-row { display: grid; gap: 5px; margin: 0 0 10px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.detected.readonly .detected-row strong { color: var(--ink); font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.detected.readonly .detected-row.changed { border-color: #12a150; background: #f0fdf4; }
+.detected.readonly .detected-row.changed strong { color: #067647; }
+.detected-empty { margin: 0; color: var(--muted); line-height: 1.45; }
+.detected.readonly h3::after { content: "solo lectura"; }

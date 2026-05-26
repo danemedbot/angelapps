@@ -65,7 +65,6 @@ export default function Home() {
   const [colorCrm, setColorCrm] = useState("");
   const [contactoAsesor, setContactoAsesor] = useState("");
   const [contact, setContact] = useState<Contact>(emptyContact);
-  const [modifiedFields, setModifiedFields] = useState<Record<string, boolean>>({});
   const [profesion, setProfesion] = useState("");
   const [crm, setCrm] = useState<CrmInfo | null>(null);
   const [cedula, setCedula] = useState<CedulaInfo | null>(null);
@@ -132,8 +131,8 @@ export default function Home() {
   function acceptOfficial(field: ReviewField) {
     const result = cedula?.result;
     if (!result) return;
-    if (field === "nombre" && result.nombre) { setContact((c) => ({ ...c, nombre: result.nombre || c.nombre })); setModifiedFields((m) => ({ ...m, nombre: true })); }
-    if (field === "profesion" && result.carrera) { setProfesion(result.carrera); setModifiedFields((m) => ({ ...m, profesion: true })); }
+    if (field === "nombre" && result.nombre) setContact((c) => ({ ...c, nombre: result.nombre || c.nombre }));
+    if (field === "profesion" && result.carrera) setProfesion(result.carrera);
     setReview((r) => ({ ...r, [field]: true }));
   }
   function keepOriginal(field: ReviewField) { setReview((r) => ({ ...r, [field]: true })); }
@@ -214,8 +213,8 @@ export default function Home() {
         <Field label="Quién asignará" required><select value={quienAsigna} onChange={(e) => setQuienAsigna(e.target.value)}><option value="">-</option>{asignadores.map((item) => <option key={item}>{item}</option>)}</select></Field>
         <Field label="Fuente" required><select value={fuente} onChange={(e) => setFuente(e.target.value)}><option value="">-</option>{fuentes.map((item) => <option key={item}>{item}</option>)}</select></Field>
         <Field label="Producto / Interés" required><select value={producto} onChange={(e) => setProducto(e.target.value)}><option value="">-</option>{productos.map((item) => <option key={item}>{item}</option>)}</select></Field>
-        <Field label="Datos del contacto" required><textarea value={datos} onChange={(e) => { setDatos(e.target.value); setContact(emptyContact); setModifiedFields({}); }} rows={7} placeholder={"Juan Pérez López\n12345678\n5512345678\nMonterrey, Nuevo León\ncorreo@ejemplo.com"} /></Field>
-        <div className="detected featured"><h3>Detectado</h3><DetectedInput label="Nombre" value={activeContact.nombre} changed={!!modifiedFields.nombre} onChange={(value) => { setContact((c) => ({ ...c, nombre: value })); setModifiedFields((m) => ({ ...m, nombre: true })); }} /><DetectedInput label="Cédula" value={activeContact.cedula} changed={!!modifiedFields.cedula} onChange={(value) => { setContact((c) => ({ ...c, cedula: digits(value).slice(0, 10) })); setModifiedFields((m) => ({ ...m, cedula: true })); }} /><DetectedInput label="WhatsApp" value={activeContact.whatsapp} changed={!!modifiedFields.whatsapp} onChange={(value) => { setContact((c) => ({ ...c, whatsapp: digits(value).slice(-10) })); setModifiedFields((m) => ({ ...m, whatsapp: true })); }} /><DetectedInput label="Ciudad" value={activeContact.ciudad} changed={!!modifiedFields.ciudad} onChange={(value) => { setContact((c) => ({ ...c, ciudad: value })); setModifiedFields((m) => ({ ...m, ciudad: true })); }} /><DetectedInput label="Correo" value={activeContact.correo} changed={!!modifiedFields.correo} onChange={(value) => { setContact((c) => ({ ...c, correo: value })); setModifiedFields((m) => ({ ...m, correo: true })); }} /><DetectedInput label="Profesión" value={profesion || cedula?.result?.carrera || ""} changed={!!modifiedFields.profesion || !!profesion} onChange={(value) => { setProfesion(value); setModifiedFields((m) => ({ ...m, profesion: true })); }} /></div>
+        <Field label="Datos del contacto" required><textarea value={datos} onChange={(e) => { setDatos(e.target.value); setContact(emptyContact); }} rows={7} placeholder={"Juan Pérez López\n12345678\n5512345678\nMonterrey, Nuevo León\ncorreo@ejemplo.com"} /></Field>
+        <div className="detected featured readonly"><h3>Detectado</h3>{activeContact.nombre && <DetectedValue label="Nombre" value={activeContact.nombre} />}{activeContact.cedula && <DetectedValue label="Cédula" value={activeContact.cedula} />}{activeContact.whatsapp && <DetectedValue label="WhatsApp" value={activeContact.whatsapp} />}{activeContact.ciudad && <DetectedValue label="Ciudad" value={activeContact.ciudad} />}{activeContact.correo && <DetectedValue label="Correo" value={activeContact.correo} />}{(profesion || cedula?.result?.carrera) && <DetectedValue label="Profesión" value={profesion || cedula?.result?.carrera || ""} highlighted />}{!activeContact.nombre && !activeContact.cedula && !activeContact.whatsapp && !activeContact.ciudad && !activeContact.correo && !(profesion || cedula?.result?.carrera) && <p className="detected-empty">Pega datos del contacto para detectar información.</p>}</div>
         <div className="stacked-actions"><button className="primary" type="button" disabled={!!busy} onClick={buscarProfesion}>{busy === "profesion" ? "Buscando..." : "Buscar Profesión"}</button><button className="primary" type="button" disabled={!!busy} onClick={buscarCrm}>{busy === "crm" ? "Buscando..." : "Buscar CRM"}</button></div>
       </div>
       <div className="section-title second"><span>02</span><div><h2>Asignación CRM</h2><p>Campos derivados de la consulta CRM, respetando la operación actual.</p></div></div>
@@ -248,7 +247,7 @@ export default function Home() {
   </main>;
 }
 
-function DetectedInput({ label, value, changed, onChange }: { label: string; value: string; changed: boolean; onChange: (value: string) => void }) { return <label className={`detected-row ${changed ? "changed" : ""}`}><span>{label}</span><input value={value} onChange={(e) => onChange(e.target.value)} placeholder="-" /></label>; }
+function DetectedValue({ label, value, highlighted }: { label: string; value: string; highlighted?: boolean }) { return <div className={`detected-row ${highlighted ? "changed" : ""}`}><span>{label}</span><strong>{value}</strong></div>; }
 function Field({ label, error, required, children }: { label: string; error?: string; required?: boolean; children: React.ReactNode }) { return <label className="field"><span>{label} {required && <b>*</b>}</span>{children}{error && <small className="field-error">{error}</small>}</label>; }
 function ReviewLine({ label, value }: { label: string; value: string }) { return <div className="review"><span>{label}</span><strong>{value || "-"}</strong></div>; }
 function ReviewChoice({ label, value, decided, onAccept, onKeep, acceptTitle, keepTitle }: { label: string; value: string; decided: boolean; onAccept?: () => void; onKeep?: () => void; acceptTitle?: string; keepTitle?: string }) {
