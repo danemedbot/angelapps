@@ -206,3 +206,9 @@ tbody tr.ultima-fila { background: rgba(106, 13, 173, 0.08); }
 .detected.readonly .detected-row.changed strong { color: #067647; }
 .detected-empty { margin: 0; color: var(--muted); line-height: 1.45; }
 .detected.readonly h3::after { content: "solo lectura"; }
+
+/* Modal profesión: elección por columna */
+.column-decisions > div { border: 2px solid transparent; border-radius: 24px; padding: 10px; transition: border .18s ease, background .18s ease, box-shadow .18s ease; }
+.column-decisions > div.selected-column { border-color: var(--brand); background: rgba(106, 13, 173, .06); box-shadow: 0 16px 36px rgba(106, 13, 173, .12); }
+.column-choice { width: 100%; margin-top: 12px; border: 0; border-radius: 16px; padding: 13px 14px; color: white; background: linear-gradient(135deg, var(--brand), var(--brand-2)); font-weight: 950; box-shadow: 0 12px 28px rgba(106,13,173,.18); }
+.column-decisions .selected-column .column-choice::before { content: "✓ "; }

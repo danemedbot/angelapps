@@ -68,7 +68,7 @@ export default function Home() {
   const [profesion, setProfesion] = useState("");
   const [crm, setCrm] = useState<CrmInfo | null>(null);
   const [cedula, setCedula] = useState<CedulaInfo | null>(null);
-  const [review, setReview] = useState<Record<ReviewField, boolean>>({ nombre: false, profesion: false });
+  const [reviewSource, setReviewSource] = useState<"capturado" | "oficial" | "">("");
   const [showProfessionModal, setShowProfessionModal] = useState(false);
   const [showCrmModal, setShowCrmModal] = useState(false);
   const [resultado, setResultado] = useState("");
@@ -97,7 +97,7 @@ export default function Home() {
       const data = await response.json();
       if (!response.ok || data?.ok === false) throw new Error(data?.errors?.join(" ") || "No se pudo consultar la profesión.");
       setCedula(data.cedula);
-      setReview({ nombre: false, profesion: false });
+      setReviewSource("");
       setShowProfessionModal(true);
     } catch (e) { setError(e instanceof Error ? e.message : "No se pudo consultar la profesión."); }
     finally { setBusy(""); }
@@ -128,14 +128,16 @@ export default function Home() {
     finally { setBusy(""); }
   }
 
-  function acceptOfficial(field: ReviewField) {
-    const result = cedula?.result;
-    if (!result) return;
-    if (field === "nombre" && result.nombre) setContact((c) => ({ ...c, nombre: result.nombre || c.nombre }));
-    if (field === "profesion" && result.carrera) setProfesion(result.carrera);
-    setReview((r) => ({ ...r, [field]: true }));
+  function usarCapturado() {
+    setReviewSource("capturado");
   }
-  function keepOriginal(field: ReviewField) { setReview((r) => ({ ...r, [field]: true })); }
+
+  function usarOficial() {
+    const result = cedula?.result;
+    if (result?.nombre) setContact((c) => ({ ...c, nombre: result.nombre || c.nombre }));
+    if (result?.carrera) setProfesion(result.carrera);
+    setReviewSource("oficial");
+  }
 
   function mantenerAsignacion() {
     if (crmAgent) setAgente(crmAgent);
@@ -241,7 +243,7 @@ export default function Home() {
       <div className="actions"><button className="secondary" type="button" onClick={() => navigator.clipboard.writeText(rows.map((r) => [r.mes, r.fecha, r.hora, r.fuente, r.nombre, r.whatsapp, r.ciudad, r.cedula, r.profesion, r.agente, r.quienAsigna, r.crmAnterior, r.colorCrm, r.contactoAsesor, r.interes].join("\t")).join("\n"))}>Copiar Tabla</button></div>
     </section>
 
-    {showProfessionModal && <div className="modal-backdrop"><section className={cedula?.result ? "modal wide" : "modal simple-modal"}>{!cedula?.result ? <><button className="close" type="button" onClick={() => setShowProfessionModal(false)} aria-label="Cerrar">×</button><p className="eyebrow">Consulta de profesión</p><div className="empty-state"><span className="empty-icon">×</span><h2>No se encontró información con esa cédula.</h2><p>Revisa el número capturado e intenta nuevamente.</p></div></> : <><p className="eyebrow">Comparativo de profesión</p><h2>Revisa cada dato antes de continuar</h2><div className="compare inline-decisions"><div><h3>Capturado</h3><ReviewChoice label="Nombre" value={activeContact.nombre} decided={review.nombre} onKeep={() => keepOriginal("nombre")} keepTitle="Conservar nombre capturado" /><ReviewChoice label="Profesión" value={profesion || "Sin profesión capturada"} decided={review.profesion} onKeep={() => keepOriginal("profesion")} keepTitle="Conservar profesión capturada" /></div><div><h3>Consulta oficial</h3><ReviewChoice label="Nombre" value={cedula.result.nombre || "Sin resultado"} decided={review.nombre} onAccept={() => acceptOfficial("nombre")} acceptTitle="Aceptar nombre oficial" /><ReviewChoice label="Profesión" value={cedula.result.carrera || "Sin resultado"} decided={review.profesion} onAccept={() => acceptOfficial("profesion")} acceptTitle="Aceptar profesión oficial" /></div></div><p className="modal-hint">Usa ✓ para aceptar el dato oficial o ↺ para conservar el capturado. Debes revisar ambos campos.</p><div className="modal-actions"><button className="primary" disabled={!review.nombre || !review.profesion} onClick={() => setShowProfessionModal(false)}>Continuar</button></div></>}</section></div>}
+    {showProfessionModal && <div className="modal-backdrop"><section className={cedula?.result ? "modal wide" : "modal simple-modal"}>{!cedula?.result ? <><button className="close" type="button" onClick={() => setShowProfessionModal(false)} aria-label="Cerrar">×</button><p className="eyebrow">Consulta de profesión</p><div className="empty-state"><span className="empty-icon">×</span><h2>No se encontró información con esa cédula.</h2><p>Revisa el número capturado e intenta nuevamente.</p></div></> : <><p className="eyebrow">Comparativo de profesión</p><h2>Elige qué columna se usará</h2><div className="compare column-decisions"><div className={reviewSource === "capturado" ? "selected-column" : ""}><h3>Capturado</h3><ReviewLine label="Nombre" value={activeContact.nombre} /><ReviewLine label="Profesión" value={profesion || "Sin profesión capturada"} /><button className="column-choice" type="button" onClick={usarCapturado}>Usar datos capturados</button></div><div className={reviewSource === "oficial" ? "selected-column" : ""}><h3>Consulta oficial</h3><ReviewLine label="Nombre" value={cedula.result.nombre || "Sin resultado"} /><ReviewLine label="Profesión" value={cedula.result.carrera || "Sin resultado"} /><button className="column-choice" type="button" onClick={usarOficial}>Usar datos oficiales</button></div></div><p className="modal-hint">Selecciona una columna completa para definir nombre y profesión.</p><div className="modal-actions"><button className="primary" disabled={!reviewSource} onClick={() => setShowProfessionModal(false)}>Continuar</button></div></>}</section></div>}
 
     {showCrmModal && <div className="modal-backdrop"><section className={crm?.cliente === "viejo" ? "modal" : "modal simple-modal"}>{crm?.cliente === "viejo" ? <><p className="eyebrow">Resultado CRM</p><h2>Contacto existente</h2><ReviewLine label="Agente asignado" value={crmAgent || "El CRM no devolvió agente"} /><ReviewLine label="Color CRM" value={crmColor || "El CRM no devolvió color"} /><p className="subtitle small">¿Desea mantener la asignación actual o reasignar este contacto?</p><div className="modal-actions"><button className="secondary" onClick={reasignar}>Reasignar</button><button className="primary" onClick={mantenerAsignacion}>Mantener asignación</button></div></> : <><button className="close" type="button" onClick={() => setShowCrmModal(false)} aria-label="Cerrar">×</button><p className="eyebrow">Resultado CRM</p><div className="empty-state"><span className="empty-icon">×</span><h2>El contacto no existe en CRM.</h2><p>Se marcó automáticamente CRM Anterior como NO.</p></div></>}</section></div>}
   </main>;
@@ -250,6 +252,3 @@ export default function Home() {
 function DetectedValue({ label, value, highlighted }: { label: string; value: string; highlighted?: boolean }) { return <div className={`detected-row ${highlighted ? "changed" : ""}`}><span>{label}</span><strong>{value}</strong></div>; }
 function Field({ label, error, required, children }: { label: string; error?: string; required?: boolean; children: React.ReactNode }) { return <label className="field"><span>{label} {required && <b>*</b>}</span>{children}{error && <small className="field-error">{error}</small>}</label>; }
 function ReviewLine({ label, value }: { label: string; value: string }) { return <div className="review"><span>{label}</span><strong>{value || "-"}</strong></div>; }
-function ReviewChoice({ label, value, decided, onAccept, onKeep, acceptTitle, keepTitle }: { label: string; value: string; decided: boolean; onAccept?: () => void; onKeep?: () => void; acceptTitle?: string; keepTitle?: string }) {
-  return <div className={`review review-choice ${decided ? "decided" : ""}`}><div><span>{label}</span><strong>{value || "-"}</strong></div><div className="choice-icons">{onAccept && <button type="button" aria-label={acceptTitle || "Aceptar"} title={acceptTitle || "Aceptar"} onClick={onAccept}>✓</button>}{onKeep && <button type="button" aria-label={keepTitle || "Conservar"} title={keepTitle || "Conservar"} onClick={onKeep}>↺</button>}</div></div>;
-}
