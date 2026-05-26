@@ -1,140 +1,256 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { RealtimeChannel } from "@supabase/supabase-js";
-import { supabase } from "../lib/supabase";
+import { useMemo, useState } from "react";
 
-type Difficulty = "easy" | "normal" | "hard";
-type Mode = "cpu" | "online";
-type Role = "host" | "guest";
-type Phase = "lobby" | "playing" | "finished";
-type RoomState = { code: string; hostY: number; guestY: number; ballX: number; ballY: number; vx: number; vy: number; hostScore: number; guestScore: number; phase: Phase; winner?: Role };
+type Contact = { nombre: string; cedula: string; whatsapp: string; ciudad: string; correo: string };
+type CrmInfo = { cliente: "viejo" | "nuevo" | "desconocido"; valor?: number; raw?: Record<string, unknown> };
+type CedulaInfo = { result: null | { cedula?: string; nombre?: string; carrera?: string; universidad?: string; estado?: string; anio?: string }; source?: string; count?: number };
+type ReviewField = "nombre" | "profesion";
+type ResultRow = { mes: string; fecha: string; hora: string; fuente: string; nombre: string; whatsapp: string; ciudad: string; cedula: string; profesion: string; agente: string; quienAsigna: string; crmAnterior: string; colorCrm: string; contactoAsesor: string; interes: string };
 
-const DIFFICULTY: Record<Difficulty, { label: string; ai: number; ball: number }> = {
-  easy: { label: "Fácil", ai: 0.055, ball: 4.8 },
-  normal: { label: "Normal", ai: 0.082, ball: 5.8 },
-  hard: { label: "Difícil", ai: 0.12, ball: 6.8 },
-};
-const WIDTH = 820, HEIGHT = 500, PADDLE_W = 14, PADDLE_H = 86, BALL = 12, WIN_SCORE = 7;
-const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-const roomCode = () => Math.random().toString(36).slice(2, 6).toUpperCase();
-const blankState = (code: string): RoomState => ({ code, hostY: HEIGHT / 2 - PADDLE_H / 2, guestY: HEIGHT / 2 - PADDLE_H / 2, ballX: WIDTH / 2, ballY: HEIGHT / 2, vx: 5.8, vy: 3.1, hostScore: 0, guestScore: 0, phase: "lobby" });
+const emptyContact: Contact = { nombre: "", cedula: "", whatsapp: "", ciudad: "", correo: "" };
+
+const asignadores = ["Angel", "Antonio", "Kiara"];
+const fuentes = ["Instagram Danemed", "Facebook Danemed", "Rejeunesse - Formulario Med-Dent 2026-copy", "Instagram Pink Intimate", "Facebook Pink Intimate", "Web Pink Intimate", "Instagram Rejeunesse", "Facebook Rejeunesse", "Web Rejeunesse", "Instagram LusciousLips", "Facebook LusciousLips", "Formulario lUCIOS LIPS", "Web LusciousLips", "Instagram CursosMedEstetica", "Facebook CursosMedEstetica", "Whatsapp Danemed", "Emagister", "Formulario LAPUROON Aurora"];
+const productos = ["Rejeunesse", "Pink Intimate System", "LusciousLips", "V-Tech System", "ExoTech Gel", "SkinFill BACIO", "Cursos", "Catálogo de Productos", "Kenacort / Triamcinolona", "Renovah", "Toxina Botulínica", "Productos BCN", "Libros", "Hilos PDO", "AGF", "Lapuroon"];
+const agentes = ["amairani", "amejia", "btostado", "zulay", "bperez2", "selene2", "DISTRITATI", "cristina", "diana", "marisa2", "micaela", "stefany", "moncho", "josecarlos", "katerin", "mariel", "daisy", "lupita", "juan", "pefa", "reison", "distribuidores"];
+
+function digits(value: string) { return value.replace(/\D/g, ""); }
+function titleCase(value: string) { return value.toLowerCase().split(/\s+/).filter(Boolean).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" "); }
+function normalize(value: string) { return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
+function nowParts() {
+  const d = new Date();
+  return {
+    mes: new Intl.DateTimeFormat("es-MX", { month: "long", timeZone: "America/Mexico_City" }).format(d).toUpperCase(),
+    fecha: new Intl.DateTimeFormat("es-MX", { dateStyle: "short", timeZone: "America/Mexico_City" }).format(d),
+    hora: new Intl.DateTimeFormat("es-MX", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "America/Mexico_City" }).format(d).toLowerCase(),
+  };
+}
+
+function parseContact(text: string): Contact {
+  const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const contact: Contact = { ...emptyContact, nombre: lines[0] || "" };
+  const rest = lines.slice(1);
+  for (const line of rest) {
+    const clean = line.trim();
+    const ds = digits(clean);
+    if (!contact.correo && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) contact.correo = clean.toLowerCase();
+    else if (!contact.whatsapp && ds.length >= 10 && ds.length <= 13) contact.whatsapp = ds.slice(-10);
+    else if (!contact.cedula && /^\d{4,10}$/.test(ds)) contact.cedula = ds;
+    else if (!contact.ciudad) contact.ciudad = clean;
+  }
+  if (!contact.ciudad) {
+    const city = rest.find((line) => !line.includes("@") && !/^\+?[\d\s()\-.]{4,}$/.test(line));
+    if (city) contact.ciudad = city;
+  }
+  return contact;
+}
+
+function rawString(raw: Record<string, unknown> | undefined, keys: string[]) {
+  if (!raw) return "";
+  for (const key of keys) {
+    const found = Object.entries(raw).find(([k]) => normalize(k) === normalize(key));
+    if (found && found[1] != null && String(found[1]).trim()) return String(found[1]).trim();
+  }
+  return "";
+}
 
 export default function Home() {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const channelRef = useRef<RealtimeChannel | null>(null);
-  const keys = useRef(new Set<string>());
-  const pointerY = useRef<number | null>(null);
-  const frame = useRef<number | null>(null);
-  const remoteY = useRef(HEIGHT / 2 - PADDLE_H / 2);
-  const lastSent = useRef(0);
-  const latestScore = useRef({ player: 0, cpu: 0 });
+  const [quienAsigna, setQuienAsigna] = useState("");
+  const [datos, setDatos] = useState("");
+  const [fuente, setFuente] = useState("");
+  const [producto, setProducto] = useState("");
+  const [agente, setAgente] = useState("");
+  const [crmAnterior, setCrmAnterior] = useState("");
+  const [colorCrm, setColorCrm] = useState("");
+  const [contactoAsesor, setContactoAsesor] = useState("");
+  const [contact, setContact] = useState<Contact>(emptyContact);
+  const [modifiedFields, setModifiedFields] = useState<Record<string, boolean>>({});
+  const [profesion, setProfesion] = useState("");
+  const [crm, setCrm] = useState<CrmInfo | null>(null);
+  const [cedula, setCedula] = useState<CedulaInfo | null>(null);
+  const [review, setReview] = useState<Record<ReviewField, boolean>>({ nombre: false, profesion: false });
+  const [showProfessionModal, setShowProfessionModal] = useState(false);
+  const [showCrmModal, setShowCrmModal] = useState(false);
+  const [resultado, setResultado] = useState("");
+  const [rows, setRows] = useState<ResultRow[]>([]);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState("");
 
-  const [difficulty, setDifficulty] = useState<Difficulty>("normal");
-  const [mode, setMode] = useState<Mode>("cpu");
-  const [running, setRunning] = useState(false);
-  const [score, setScoreState] = useState({ player: 0, cpu: 0 });
-  const [message, setMessage] = useState("Inicia solo o crea una sala para jugar con alguien");
-  const [role, setRole] = useState<Role>("host");
-  const [room, setRoom] = useState("");
-  const [joinCode, setJoinCode] = useState("");
-  const [connected, setConnected] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const parsed = useMemo(() => parseContact(datos), [datos]);
+  const activeContact = { ...parsed, ...Object.fromEntries(Object.entries(contact).filter(([, v]) => v)) } as Contact;
+  const crmAgent = rawString(crm?.raw, ["agente", "asesor", "agent", "assigned_agent", "usuario", "nombre_agente"]);
+  const crmColor = rawString(crm?.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color"]) || (crm?.cliente === "viejo" ? colorCrm : "");
 
-  const setScore = useCallback((next: { player: number; cpu: number }) => { latestScore.current = next; setScoreState(next); }, []);
-  const game = useRef({ playerY: HEIGHT / 2 - PADDLE_H / 2, cpuY: HEIGHT / 2 - PADDLE_H / 2, ballX: WIDTH / 2, ballY: HEIGHT / 2, vx: DIFFICULTY.normal.ball, vy: 3.2 });
-  const inviteUrl = useMemo(() => room && typeof window !== "undefined" ? `${window.location.origin}?room=${room}` : "", [room]);
+  function syncParsed() {
+    const next = parseContact(datos);
+    setContact(next);
+    return next;
+  }
 
-  useEffect(() => { const incoming = new URLSearchParams(window.location.search).get("room")?.toUpperCase(); if (incoming) { setMode("online"); setJoinCode(incoming); } }, []);
+  async function buscarProfesion() {
+    setError("");
+    const found = activeContact;
+    if (!found.cedula) { setError("No detecté una cédula profesional en Datos del contacto."); return; }
+    setBusy("profesion");
+    try {
+      const response = await fetch("/api/lead/profession", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cedula: found.cedula }) });
+      const data = await response.json();
+      if (!response.ok || data?.ok === false) throw new Error(data?.errors?.join(" ") || "No se pudo consultar la profesión.");
+      setCedula(data.cedula);
+      setReview({ nombre: false, profesion: false });
+      setShowProfessionModal(true);
+    } catch (e) { setError(e instanceof Error ? e.message : "No se pudo consultar la profesión."); }
+    finally { setBusy(""); }
+  }
 
-  const localPaddleY = useCallback(() => {
-    const g = game.current;
-    if (keys.current.has("arrowup") || keys.current.has("w")) g.playerY -= 8;
-    if (keys.current.has("arrowdown") || keys.current.has("s")) g.playerY += 8;
-    if (pointerY.current !== null) g.playerY += (pointerY.current - PADDLE_H / 2 - g.playerY) * 0.22;
-    g.playerY = clamp(g.playerY, 0, HEIGHT - PADDLE_H);
-    return g.playerY;
-  }, []);
-
-  const publishPaddle = useCallback((y: number) => {
-    if (!channelRef.current || !room) return;
-    const now = performance.now(); if (now - lastSent.current < 45) return; lastSent.current = now;
-    channelRef.current.send({ type: "broadcast", event: "paddle", payload: { role, y } });
-  }, [role, room]);
-  const publishState = useCallback((state: RoomState) => { channelRef.current?.send({ type: "broadcast", event: "state", payload: state }); }, []);
-
-  const draw = useCallback((ctx: CanvasRenderingContext2D) => {
-    const g = game.current;
-    const leftY = mode === "online" && role === "guest" ? g.cpuY : g.playerY;
-    const rightY = mode === "online" && role === "guest" ? g.playerY : g.cpuY;
-    ctx.fillStyle = "#07110e"; ctx.fillRect(0, 0, WIDTH, HEIGHT);
-    const gradient = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2, 20, WIDTH / 2, HEIGHT / 2, WIDTH / 1.2);
-    gradient.addColorStop(0, "rgba(62,255,150,0.09)"); gradient.addColorStop(1, "rgba(62,255,150,0.01)"); ctx.fillStyle = gradient; ctx.fillRect(0, 0, WIDTH, HEIGHT);
-    ctx.strokeStyle = "rgba(97,255,169,0.20)"; ctx.lineWidth = 2; for (let y = 12; y < HEIGHT; y += 32) { ctx.beginPath(); ctx.moveTo(WIDTH / 2, y); ctx.lineTo(WIDTH / 2, y + 17); ctx.stroke(); }
-    ctx.shadowColor = "#67ffaf"; ctx.shadowBlur = 15; ctx.fillStyle = "#b8ffd6"; ctx.fillRect(34, leftY, PADDLE_W, PADDLE_H); ctx.fillRect(WIDTH - 48, rightY, PADDLE_W, PADDLE_H); ctx.fillRect(g.ballX - BALL / 2, g.ballY - BALL / 2, BALL, BALL); ctx.shadowBlur = 0;
-    ctx.font = "28px monospace"; ctx.fillStyle = "rgba(184,255,214,0.72)";
-    const leftScore = mode === "online" ? (role === "guest" ? score.cpu : score.player) : score.player;
-    const rightScore = mode === "online" ? (role === "guest" ? score.player : score.cpu) : score.cpu;
-    ctx.fillText(String(leftScore).padStart(2, "0"), WIDTH / 2 - 92, 44); ctx.fillText(String(rightScore).padStart(2, "0"), WIDTH / 2 + 54, 44);
-    ctx.fillStyle = "rgba(184,255,214,0.35)"; for (let y = 0; y < HEIGHT; y += 4) ctx.fillRect(0, y, WIDTH, 1);
-  }, [mode, role, score]);
-
-  useEffect(() => { const ctx = canvasRef.current?.getContext("2d"); if (ctx) draw(ctx); }, [draw]);
-  useEffect(() => { const down = (e: KeyboardEvent) => keys.current.add(e.key.toLowerCase()); const up = (e: KeyboardEvent) => keys.current.delete(e.key.toLowerCase()); window.addEventListener("keydown", down); window.addEventListener("keyup", up); return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); }; }, []);
-  useEffect(() => () => { channelRef.current?.unsubscribe(); }, []);
-
-  const connectRoom = useCallback((code: string, nextRole: Role) => {
-    if (!supabase) { setMessage("Falta configurar Supabase Realtime en Vercel"); return; }
-    channelRef.current?.unsubscribe(); setConnected(false);
-    const channel = supabase.channel(`pong-${code}`, { config: { broadcast: { self: false }, presence: { key: nextRole } } });
-    channel.on("broadcast", { event: "paddle" }, ({ payload }) => { if (payload.role !== nextRole) remoteY.current = payload.y; });
-    channel.on("broadcast", { event: "state" }, ({ payload }) => {
-      const state = payload as RoomState;
-      if (nextRole === "guest") { game.current.playerY = state.guestY; game.current.cpuY = state.hostY; game.current.ballX = WIDTH - state.ballX; game.current.ballY = state.ballY; game.current.vx = -state.vx; game.current.vy = state.vy; setScore({ player: state.guestScore, cpu: state.hostScore }); }
-      else { game.current.playerY = state.hostY; game.current.cpuY = state.guestY; game.current.ballX = state.ballX; game.current.ballY = state.ballY; game.current.vx = state.vx; game.current.vy = state.vy; setScore({ player: state.hostScore, cpu: state.guestScore }); }
-      setRunning(state.phase === "playing");
-      if (state.phase === "lobby") setMessage(nextRole === "host" ? "Sala lista. Comparte el link y presiona iniciar." : "Conectado. Espera a que el host inicie.");
-      if (state.phase === "finished") setMessage(state.winner === nextRole ? "Ganaste la partida online." : "Tu rival ganó la partida.");
-    });
-    channel.subscribe((status) => { setConnected(status === "SUBSCRIBED"); if (status === "SUBSCRIBED") setMessage(nextRole === "host" ? "Sala creada. Comparte el link." : "Entraste a la sala. Esperando al host."); });
-    channelRef.current = channel; setRoom(code); setRole(nextRole); setMode("online");
-  }, [setScore]);
-
-  const createRoom = () => connectRoom(roomCode(), "host");
-  const joinRoom = () => { const code = joinCode.trim().toUpperCase(); if (code.length >= 4) connectRoom(code, "guest"); };
-  const serve = useCallback((towardsPlayer = Math.random() > 0.5) => { const speed = DIFFICULTY[difficulty].ball; game.current.ballX = WIDTH / 2; game.current.ballY = HEIGHT / 2; game.current.vx = (towardsPlayer ? -1 : 1) * speed; game.current.vy = (Math.random() * 4 - 2) || 2.5; }, [difficulty]);
-
-  useEffect(() => {
-    if (!running) return; const ctx = canvasRef.current?.getContext("2d"); if (!ctx) return;
-    const tick = () => {
-      const g = game.current;
-      if (mode === "online") {
-        const y = localPaddleY(); publishPaddle(y);
-        if (role === "host") {
-          g.cpuY = clamp(remoteY.current, 0, HEIGHT - PADDLE_H); g.ballX += g.vx; g.ballY += g.vy; if (g.ballY <= BALL / 2 || g.ballY >= HEIGHT - BALL / 2) g.vy *= -1;
-          const hitHost = g.ballX - BALL / 2 <= 48 && g.ballX > 30 && g.ballY >= g.playerY && g.ballY <= g.playerY + PADDLE_H;
-          const hitGuest = g.ballX + BALL / 2 >= WIDTH - 48 && g.ballX < WIDTH - 30 && g.ballY >= g.cpuY && g.ballY <= g.cpuY + PADDLE_H;
-          if (hitHost || hitGuest) { const paddleY = hitHost ? g.playerY : g.cpuY; const offset = (g.ballY - (paddleY + PADDLE_H / 2)) / (PADDLE_H / 2); g.vx = (hitHost ? 1 : -1) * Math.min(Math.abs(g.vx) + 0.2, 9); g.vy = offset * 5.5; }
-          let hostScore = latestScore.current.player, guestScore = latestScore.current.cpu, phase: Phase = "playing", winner: Role | undefined;
-          if (g.ballX < -20 || g.ballX > WIDTH + 20) { const hostPoint = g.ballX > WIDTH; hostScore += hostPoint ? 1 : 0; guestScore += hostPoint ? 0 : 1; if (hostScore >= WIN_SCORE || guestScore >= WIN_SCORE) { phase = "finished"; winner = hostScore > guestScore ? "host" : "guest"; setRunning(false); } g.ballX = WIDTH / 2; g.ballY = HEIGHT / 2; g.vx = (hostPoint ? -1 : 1) * 5.8; g.vy = (Math.random() * 4 - 2) || 2.5; setScore({ player: hostScore, cpu: guestScore }); }
-          publishState({ code: room, hostY: g.playerY, guestY: g.cpuY, ballX: g.ballX, ballY: g.ballY, vx: g.vx, vy: g.vy, hostScore, guestScore, phase, winner });
-        }
-        draw(ctx); frame.current = requestAnimationFrame(tick); return;
+  async function buscarCrm() {
+    setError("");
+    const found = activeContact;
+    if (found.whatsapp.length !== 10) { setError("El WhatsApp debe tener exactamente 10 dígitos."); return; }
+    if (!found.cedula) { setError("No detecté una cédula para consultar CRM."); return; }
+    setBusy("crm");
+    try {
+      const response = await fetch("/api/lead/crm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ whatsapp: found.whatsapp, cedula: found.cedula }) });
+      const data = await response.json();
+      if (!response.ok || data?.ok === false) throw new Error(data?.errors?.join(" ") || "No se pudo consultar CRM.");
+      setCrm(data.crm);
+      if (data.crm.cliente === "viejo") {
+        setCrmAnterior("SI");
+        setColorCrm(rawString(data.crm.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color"]));
+        setShowCrmModal(true);
+      } else {
+        setCrmAnterior("NO");
+        setColorCrm("");
+        setContactoAsesor("");
+        setShowCrmModal(true);
       }
-      const speed = DIFFICULTY[difficulty].ball; localPaddleY(); const cpuTarget = g.ballY - PADDLE_H / 2; g.cpuY += (cpuTarget - g.cpuY) * DIFFICULTY[difficulty].ai; g.cpuY = clamp(g.cpuY, 0, HEIGHT - PADDLE_H); g.ballX += g.vx; g.ballY += g.vy;
-      if (g.ballY <= BALL / 2 || g.ballY >= HEIGHT - BALL / 2) g.vy *= -1;
-      const hitPlayer = g.ballX - BALL / 2 <= 48 && g.ballX > 30 && g.ballY >= g.playerY && g.ballY <= g.playerY + PADDLE_H; const hitCpu = g.ballX + BALL / 2 >= WIDTH - 48 && g.ballX < WIDTH - 30 && g.ballY >= g.cpuY && g.ballY <= g.cpuY + PADDLE_H;
-      if (hitPlayer || hitCpu) { const paddleY = hitPlayer ? g.playerY : g.cpuY; const offset = (g.ballY - (paddleY + PADDLE_H / 2)) / (PADDLE_H / 2); g.vx = (hitPlayer ? 1 : -1) * Math.min(Math.abs(g.vx) + 0.25, speed + 3.2); g.vy = offset * 5.5; }
-      if (g.ballX < -20 || g.ballX > WIDTH + 20) { const playerPoint = g.ballX > WIDTH; const next = { player: latestScore.current.player + (playerPoint ? 1 : 0), cpu: latestScore.current.cpu + (playerPoint ? 0 : 1) }; setScore(next); if (next.player >= WIN_SCORE || next.cpu >= WIN_SCORE) { setRunning(false); setMessage(next.player > next.cpu ? "Ganaste el match." : "La máquina ganó."); } serve(!playerPoint); }
-      draw(ctx); frame.current = requestAnimationFrame(tick);
-    };
-    frame.current = requestAnimationFrame(tick); return () => { if (frame.current) cancelAnimationFrame(frame.current); };
-  }, [difficulty, draw, localPaddleY, mode, publishPaddle, publishState, role, room, running, serve, setScore]);
+    } catch (e) { setError(e instanceof Error ? e.message : "No se pudo consultar CRM."); }
+    finally { setBusy(""); }
+  }
 
-  const start = () => {
-    if (mode === "online") { if (role !== "host") { setMessage("Solo quien creó la sala puede iniciar."); return; } const state = blankState(room || roomCode()); state.phase = "playing"; setScore({ player: 0, cpu: 0 }); setMessage(""); setRunning(true); publishState(state); return; }
-    setScore({ player: 0, cpu: 0 }); setMessage(""); serve(false); setRunning(true);
-  };
+  function acceptOfficial(field: ReviewField) {
+    const result = cedula?.result;
+    if (!result) return;
+    if (field === "nombre" && result.nombre) { setContact((c) => ({ ...c, nombre: result.nombre || c.nombre })); setModifiedFields((m) => ({ ...m, nombre: true })); }
+    if (field === "profesion" && result.carrera) { setProfesion(result.carrera); setModifiedFields((m) => ({ ...m, profesion: true })); }
+    setReview((r) => ({ ...r, [field]: true }));
+  }
+  function keepOriginal(field: ReviewField) { setReview((r) => ({ ...r, [field]: true })); }
 
-  return <main className="page"><section className="hero"><p className="eyebrow">AngelApps / web app móvil</p><h1>Telebolito Retro Pong</h1><p className="subtitle">Juega contra la máquina o crea una sala para retar a otra persona desde el celular.</p></section><section className="arcade"><div className="tv"><div className="screen-wrap"><canvas ref={canvasRef} width={WIDTH} height={HEIGHT} onPointerMove={(e) => { const rect = e.currentTarget.getBoundingClientRect(); pointerY.current = ((e.clientY - rect.top) / rect.height) * HEIGHT; }} onPointerLeave={() => { pointerY.current = null; }} aria-label="Juego Pong retro" />{message && <div className="overlay">{message}</div>}</div><div className="speaker" /><div className="knobs"><span /><span /></div></div><aside className="panel"><div className="tabs"><button className={mode === "cpu" ? "active" : ""} onClick={() => { setMode("cpu"); setRunning(false); }}>Solo</button><button className={mode === "online" ? "active" : ""} onClick={() => setMode("online")}>2 jugadores</button></div>{mode === "cpu" ? <><p className="label">Dificultad</p><div className="buttons">{(Object.keys(DIFFICULTY) as Difficulty[]).map((level) => <button key={level} className={difficulty === level ? "active" : ""} onClick={() => { setDifficulty(level); setRunning(false); setMessage(`Dificultad: ${DIFFICULTY[level].label}`); }} type="button">{DIFFICULTY[level].label}</button>)}</div></> : <div className="online"><button type="button" onClick={createRoom}>Crear sala</button><div className="join"><input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} placeholder="Código" maxLength={6} /><button type="button" onClick={joinRoom}>Entrar</button></div>{room && <div className="invite"><span>Sala {room} · {connected ? "online" : "conectando"}</span><button type="button" onClick={async () => { await navigator.clipboard.writeText(inviteUrl); setCopied(true); setTimeout(() => setCopied(false), 1200); }}>{copied ? "Copiado" : "Copiar link"}</button><small>{inviteUrl}</small></div>}</div>}<button className="start" type="button" onClick={start}>{running ? "Reiniciar" : "Iniciar partida"}</button><div className="scorecard"><span>{mode === "online" ? "Tú" : "Angel"}</span><strong>{score.player}</strong><span>{mode === "online" ? "Rival" : "Máquina"}</span><strong>{score.cpu}</strong></div><p className="help">Móvil: arrastra el dedo en la pantalla. Teclado: ↑/↓ o W/S. Online: crea sala, copia link y el otro entra.</p></aside></section></main>;
+  function mantenerAsignacion() {
+    if (crmAgent) setAgente(crmAgent);
+    if (crmColor) setColorCrm(crmColor);
+    setContactoAsesor("SI");
+    setCrmAnterior("SI");
+    setShowCrmModal(false);
+  }
+  function reasignar() {
+    setAgente("");
+    if (crmColor) setColorCrm(crmColor);
+    setContactoAsesor("NO");
+    setCrmAnterior("SI");
+    setShowCrmModal(false);
+  }
+
+  function buildOrganizedData() {
+    const found = syncParsed();
+    const finalContact = { ...found, ...Object.fromEntries(Object.entries(contact).filter(([, v]) => v)) } as Contact;
+    if (!quienAsigna || !fuente || !producto || !agente || !crmAnterior) throw new Error("Faltan campos obligatorios de asignación/origen.");
+    if (!finalContact.nombre || finalContact.whatsapp.length !== 10 || !finalContact.cedula || !finalContact.ciudad) throw new Error("Revisa Datos del contacto: nombre, WhatsApp de 10 dígitos, cédula y ciudad son obligatorios.");
+    if (crmAnterior === "SI" && (!colorCrm || !contactoAsesor)) throw new Error("Si existe en CRM, falta color CRM o confirmar si el contacto es de ese asesor.");
+    const productosEspeciales = ["Rejeunesse", "Pink Intimate System", "LusciousLips", "Hilos PDO", "Lapuroon"];
+    const tieneFormulario = fuente.includes("Formulario");
+    const finalProfesion = titleCase(profesion || cedula?.result?.carrera || "Por Definir");
+    const encabezado = tieneFormulario
+      ? `*Contacto Campaña ${titleCase(producto)}*\n${fuente}`
+      : productosEspeciales.includes(producto)
+        ? `*Contacto Campaña ${titleCase(producto)}:*`
+        : `*Contacto ${fuente}:*`;
+    const crmPrefix = crmAnterior === "SI"
+      ? contactoAsesor === "SI" ? `Existe en CRM y *es tuyo*, ${colorCrm}\n\n` : `Existe en CRM, se te *REASIGNÓ*, ${colorCrm}\n\n`
+      : "Contacto *NUEVO* *️⃣\n\n";
+    const text = `${crmPrefix}${encabezado}\n\n${titleCase(finalContact.nombre)}\nCiudad: ${titleCase(finalContact.ciudad)}\n${finalContact.correo ? `Correo: ${finalContact.correo}\n` : ""}Cédula Prof: ${finalContact.cedula}\nProfesión: ${finalProfesion}\nWhatsapp: ${finalContact.whatsapp}\n\nInterés en *${titleCase(producto)}*`;
+    const fh = nowParts();
+    const row: ResultRow = { mes: fh.mes, fecha: fh.fecha, hora: fh.hora, fuente, nombre: titleCase(finalContact.nombre), whatsapp: finalContact.whatsapp, ciudad: titleCase(finalContact.ciudad), cedula: finalContact.cedula, profesion: finalProfesion, agente, quienAsigna, crmAnterior, colorCrm: crmAnterior === "SI" ? colorCrm : "N/A", contactoAsesor: crmAnterior === "SI" ? contactoAsesor : "N/A", interes: titleCase(producto) };
+    return { text, row, finalContact };
+  }
+
+  function generarResultado() {
+    setError("");
+    try {
+      const { text } = buildOrganizedData();
+      setResultado(text);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo organizar la información.");
+    }
+  }
+
+  async function enviarTablaYCopiar() {
+    setError("");
+    setBusy("save");
+    try {
+      const { text, row, finalContact } = buildOrganizedData();
+      setResultado(text);
+      const body = { quienAsigna, fuente, producto, agente, nombre: finalContact.nombre, whatsapp: finalContact.whatsapp, ciudad: finalContact.ciudad, cedula: finalContact.cedula, interes: producto, eraDeEseAsesor: contactoAsesor || "N/A" };
+      const response = await fetch("/api/lead/submit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const data = await response.json();
+      if (!response.ok || data?.ok === false) throw new Error(data?.errors?.join(" ") || "No se pudo guardar.");
+      setRows((current) => [row, ...current]);
+      await navigator.clipboard.writeText(text);
+      setError(`Enviado a tabla y copiado. Guardado en ${data.sheet?.updatedRange || "Google Sheets"}`);
+    } catch (e) { setError(e instanceof Error ? e.message : "No se pudo enviar a tabla y copiar."); }
+    finally { setBusy(""); }
+  }
+
+  function removeRow(index: number) {
+    setRows((current) => current.filter((_, i) => i !== index));
+  }
+
+  return <main className="page-shell compact">
+    <section className="lead-card">
+      <div className="section-title"><span>01</span><div><h2>Entrada de datos</h2><p>Pega los datos en cualquier orden. La primera línea siempre es el nombre.</p></div></div>
+      <div className="grid three">
+        <Field label="Quién asignará" required><select value={quienAsigna} onChange={(e) => setQuienAsigna(e.target.value)}><option value="">-</option>{asignadores.map((item) => <option key={item}>{item}</option>)}</select></Field>
+        <Field label="Fuente" required><select value={fuente} onChange={(e) => setFuente(e.target.value)}><option value="">-</option>{fuentes.map((item) => <option key={item}>{item}</option>)}</select></Field>
+        <Field label="Producto / Interés" required><select value={producto} onChange={(e) => setProducto(e.target.value)}><option value="">-</option>{productos.map((item) => <option key={item}>{item}</option>)}</select></Field>
+        <Field label="Datos del contacto" required><textarea value={datos} onChange={(e) => { setDatos(e.target.value); setContact(emptyContact); setModifiedFields({}); }} rows={7} placeholder={"Juan Pérez López\n12345678\n5512345678\nMonterrey, Nuevo León\ncorreo@ejemplo.com"} /></Field>
+        <div className="detected featured"><h3>Detectado</h3><DetectedInput label="Nombre" value={activeContact.nombre} changed={!!modifiedFields.nombre} onChange={(value) => { setContact((c) => ({ ...c, nombre: value })); setModifiedFields((m) => ({ ...m, nombre: true })); }} /><DetectedInput label="Cédula" value={activeContact.cedula} changed={!!modifiedFields.cedula} onChange={(value) => { setContact((c) => ({ ...c, cedula: digits(value).slice(0, 10) })); setModifiedFields((m) => ({ ...m, cedula: true })); }} /><DetectedInput label="WhatsApp" value={activeContact.whatsapp} changed={!!modifiedFields.whatsapp} onChange={(value) => { setContact((c) => ({ ...c, whatsapp: digits(value).slice(-10) })); setModifiedFields((m) => ({ ...m, whatsapp: true })); }} /><DetectedInput label="Ciudad" value={activeContact.ciudad} changed={!!modifiedFields.ciudad} onChange={(value) => { setContact((c) => ({ ...c, ciudad: value })); setModifiedFields((m) => ({ ...m, ciudad: true })); }} /><DetectedInput label="Correo" value={activeContact.correo} changed={!!modifiedFields.correo} onChange={(value) => { setContact((c) => ({ ...c, correo: value })); setModifiedFields((m) => ({ ...m, correo: true })); }} /><DetectedInput label="Profesión" value={profesion || cedula?.result?.carrera || ""} changed={!!modifiedFields.profesion || !!profesion} onChange={(value) => { setProfesion(value); setModifiedFields((m) => ({ ...m, profesion: true })); }} /></div>
+        <div className="stacked-actions"><button className="primary" type="button" disabled={!!busy} onClick={buscarProfesion}>{busy === "profesion" ? "Buscando..." : "Buscar Profesión"}</button><button className="primary" type="button" disabled={!!busy} onClick={buscarCrm}>{busy === "crm" ? "Buscando..." : "Buscar CRM"}</button></div>
+      </div>
+      <div className="section-title second"><span>02</span><div><h2>Asignación CRM</h2><p>Campos derivados de la consulta CRM, respetando la operación actual.</p></div></div>
+      <div className="grid three small-gap">
+        <Field label="Agente" required><select value={agente} onChange={(e) => setAgente(e.target.value)}><option value="">-</option>{agentes.map((item) => <option key={item}>{item}</option>)}</select></Field>
+        <Field label="CRM Anterior" required><select value={crmAnterior} onChange={(e) => setCrmAnterior(e.target.value)}><option value="">-</option><option>SI</option><option>NO</option></select></Field>
+        {crmAnterior === "SI" && <><Field label="Color CRM" required><input value={colorCrm} onChange={(e) => setColorCrm(e.target.value)} placeholder="Color obtenido del CRM" /></Field><Field label="El contacto es de ese asesor" required><select value={contactoAsesor} onChange={(e) => setContactoAsesor(e.target.value)}><option value="">-</option><option>SI</option><option>NO</option></select></Field></>}
+      </div>
+      {error && <div className={error.startsWith("Guardado") ? "alert success" : "alert error"}>{error}</div>}
+      <div className="actions"><button className="secondary" type="button" onClick={generarResultado}>Organizar Datos</button><button className="primary" type="button" disabled={!!busy} onClick={enviarTablaYCopiar}>{busy === "save" ? "Enviando..." : "Enviar a Tabla y Copiar"}</button></div>
+    </section>
+    {resultado && <section className="lead-card result-output"><div className="section-title"><span>03</span><div><h2>Resultado</h2><p>Formato compatible con datos.danemed.com</p></div></div><pre>{resultado}</pre><button className="secondary" type="button" onClick={() => navigator.clipboard.writeText(resultado)}>Copiar resultado</button></section>}
+
+    <section className="lead-card table-card">
+      <div className="section-title"><span>04</span><div><h2>Tabla</h2><p>Misma estructura visual y operativa de datos.danemed.com</p></div></div>
+      <div className="table-wrapper">
+        <table>
+          <thead><tr><th>Mes</th><th>Fecha</th><th>Hora</th><th>Fuente</th><th>Nombre</th><th>Whatsapp</th><th>Ciudad</th><th>Cédula</th><th>Profesión</th><th>Agente</th><th>Quién asigna</th><th>CRM Anterior</th><th>Color CRM</th><th>Era de ese Asesor?</th><th>Interés</th><th>Acciones</th></tr></thead>
+          <tbody>
+            {rows.length === 0 ? <tr><td colSpan={16} className="empty-cell">Aún no hay filas enviadas desde esta sesión.</td></tr> : rows.map((row, index) => <tr key={`${row.whatsapp}-${index}`} className={index === 0 ? "ultima-fila" : ""}><td>{row.mes}</td><td>{row.fecha}</td><td>{row.hora}</td><td>{row.fuente}</td><td>{row.nombre}</td><td>{row.whatsapp}</td><td>{row.ciudad}</td><td>{row.cedula}</td><td>{row.profesion}</td><td>{row.agente}</td><td>{row.quienAsigna}</td><td>{row.crmAnterior}</td><td>{row.colorCrm}</td><td>{row.contactoAsesor}</td><td>{row.interes}</td><td><button className="boton-eliminar" type="button" onClick={() => removeRow(index)}>Eliminar</button></td></tr>)}
+          </tbody>
+        </table>
+      </div>
+      <div className="actions"><button className="secondary" type="button" onClick={() => navigator.clipboard.writeText(rows.map((r) => [r.mes, r.fecha, r.hora, r.fuente, r.nombre, r.whatsapp, r.ciudad, r.cedula, r.profesion, r.agente, r.quienAsigna, r.crmAnterior, r.colorCrm, r.contactoAsesor, r.interes].join("\t")).join("\n"))}>Copiar Tabla</button></div>
+    </section>
+
+    {showProfessionModal && <div className="modal-backdrop"><section className={cedula?.result ? "modal wide" : "modal simple-modal"}>{!cedula?.result ? <><button className="close" type="button" onClick={() => setShowProfessionModal(false)} aria-label="Cerrar">×</button><p className="eyebrow">Consulta de profesión</p><div className="empty-state"><span className="empty-icon">×</span><h2>No se encontró información con esa cédula.</h2><p>Revisa el número capturado e intenta nuevamente.</p></div></> : <><p className="eyebrow">Comparativo de profesión</p><h2>Revisa cada dato antes de continuar</h2><div className="compare inline-decisions"><div><h3>Capturado</h3><ReviewChoice label="Nombre" value={activeContact.nombre} decided={review.nombre} onKeep={() => keepOriginal("nombre")} keepTitle="Conservar nombre capturado" /><ReviewChoice label="Profesión" value={profesion || "Sin profesión capturada"} decided={review.profesion} onKeep={() => keepOriginal("profesion")} keepTitle="Conservar profesión capturada" /></div><div><h3>Consulta oficial</h3><ReviewChoice label="Nombre" value={cedula.result.nombre || "Sin resultado"} decided={review.nombre} onAccept={() => acceptOfficial("nombre")} acceptTitle="Aceptar nombre oficial" /><ReviewChoice label="Profesión" value={cedula.result.carrera || "Sin resultado"} decided={review.profesion} onAccept={() => acceptOfficial("profesion")} acceptTitle="Aceptar profesión oficial" /></div></div><p className="modal-hint">Usa ✓ para aceptar el dato oficial o ↺ para conservar el capturado. Debes revisar ambos campos.</p><div className="modal-actions"><button className="primary" disabled={!review.nombre || !review.profesion} onClick={() => setShowProfessionModal(false)}>Continuar</button></div></>}</section></div>}
+
+    {showCrmModal && <div className="modal-backdrop"><section className={crm?.cliente === "viejo" ? "modal" : "modal simple-modal"}>{crm?.cliente === "viejo" ? <><p className="eyebrow">Resultado CRM</p><h2>Contacto existente</h2><ReviewLine label="Agente asignado" value={crmAgent || "El CRM no devolvió agente"} /><ReviewLine label="Color CRM" value={crmColor || "El CRM no devolvió color"} /><p className="subtitle small">¿Desea mantener la asignación actual o reasignar este contacto?</p><div className="modal-actions"><button className="secondary" onClick={reasignar}>Reasignar</button><button className="primary" onClick={mantenerAsignacion}>Mantener asignación</button></div></> : <><button className="close" type="button" onClick={() => setShowCrmModal(false)} aria-label="Cerrar">×</button><p className="eyebrow">Resultado CRM</p><div className="empty-state"><span className="empty-icon">×</span><h2>El contacto no existe en CRM.</h2><p>Se marcó automáticamente CRM Anterior como NO.</p></div></>}</section></div>}
+  </main>;
+}
+
+function DetectedInput({ label, value, changed, onChange }: { label: string; value: string; changed: boolean; onChange: (value: string) => void }) { return <label className={`detected-row ${changed ? "changed" : ""}`}><span>{label}</span><input value={value} onChange={(e) => onChange(e.target.value)} placeholder="-" /></label>; }
+function Field({ label, error, required, children }: { label: string; error?: string; required?: boolean; children: React.ReactNode }) { return <label className="field"><span>{label} {required && <b>*</b>}</span>{children}{error && <small className="field-error">{error}</small>}</label>; }
+function ReviewLine({ label, value }: { label: string; value: string }) { return <div className="review"><span>{label}</span><strong>{value || "-"}</strong></div>; }
+function ReviewChoice({ label, value, decided, onAccept, onKeep, acceptTitle, keepTitle }: { label: string; value: string; decided: boolean; onAccept?: () => void; onKeep?: () => void; acceptTitle?: string; keepTitle?: string }) {
+  return <div className={`review review-choice ${decided ? "decided" : ""}`}><div><span>{label}</span><strong>{value || "-"}</strong></div><div className="choice-icons">{onAccept && <button type="button" aria-label={acceptTitle || "Aceptar"} title={acceptTitle || "Aceptar"} onClick={onAccept}>✓</button>}{onKeep && <button type="button" aria-label={keepTitle || "Conservar"} title={keepTitle || "Conservar"} onClick={onKeep}>↺</button>}</div></div>;
 }

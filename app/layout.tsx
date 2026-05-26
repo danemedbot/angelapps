@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AngelApps — Retro Pong",
-  description: "Un telebolito de Pong retro para probar AngelApps.",
+  title: "Organizador de Datos",
+  description: "Organizador de Datos DANEMED para captura y asignación de leads.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
