@@ -25,7 +25,7 @@ export type LeadPayload = {
   eraDeEseAsesor?: string;
 };
 
-export const CRM_ENDPOINT = process.env.CRM_CHECK_ENDPOINT || "https://app.daneapp.com/danemed/index.php/clientes/consultarcliente";
+export const CRM_ENDPOINT = process.env.CRM_CHECK_ENDPOINT || "https://app.daneapp.com/danemed/index.php/api/leads/check-client";
 export const CRM_API_TOKEN = process.env.CRM_API_TOKEN || process.env.CRM_CHECK_TOKEN || "";
 export const CEDULAS_ENDPOINT = process.env.CEDULAS_API_ENDPOINT || "https://cedulas-profesionales.vercel.app/api/cedulas";
 export const SHEET_ID = process.env.GOOGLE_SHEET_ID || "1VQd6et38O5P81NGphmlAVZHy6aaqdPQvZnGCz33jRvg";
@@ -36,6 +36,15 @@ export function digits(value: unknown) {
 
 export function cleanText(value: unknown) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function rawString(raw: Record<string, unknown> | undefined, keys: string[]) {
+  if (!raw) return "";
+  for (const key of keys) {
+    const found = Object.entries(raw).find(([k]) => cleanText(k).toLowerCase() === cleanText(key).toLowerCase());
+    if (found && found[1] != null && cleanText(found[1])) return cleanText(found[1]);
+  }
+  return "";
 }
 
 export function normalizeLead(input: Partial<LeadPayload>): LeadPayload {
@@ -163,13 +172,31 @@ async function queryCrmWeb(modeValue: "1" | "4", query: string) {
   return parseCrmWebResult(html, modeValue === "1" ? "telefono" : "cedula", query);
 }
 
+async function queryCrmApi(whatsapp: string, cedula: string) {
+  if (!CRM_API_TOKEN) throw new Error("Falta configurar CRM_API_TOKEN en el servidor.");
+  const response = await fetch(CRM_ENDPOINT, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json", authorization: `Bearer ${CRM_API_TOKEN}` },
+    body: JSON.stringify({ whatsapp, cedula }),
+    cache: "no-store",
+  });
+  const data = await response.json().catch(() => null) as Record<string, unknown> | null;
+  if (!response.ok || data?.ok === false) throw new Error(cleanText(data?.mensaje || data?.error) || "No se pudo consultar CRM.");
+  if (!data || typeof data !== "object") throw new Error("El CRM respondió un formato inválido.");
+  return data;
+}
+
 export async function checkCrm(whatsapp: string, cedula: string) {
-  const phoneResult = whatsapp ? await queryCrmWeb("1", whatsapp) : { count: 0, raw: {} as Record<string, unknown> };
-  const cedulaResult = phoneResult.count > 0 || !cedula ? { count: 0, raw: {} as Record<string, unknown> } : await queryCrmWeb("4", cedula);
-  const count = phoneResult.count || cedulaResult.count;
-  const raw = count > 0 ? (phoneResult.count > 0 ? phoneResult.raw : cedulaResult.raw) : { source: "consultarcliente-web", phone: phoneResult.raw, cedula: cedulaResult.raw };
-  const cliente: CrmStatus = count > 0 ? "viejo" : "nuevo";
-  return { ok: true, valor: count > 0 ? 0 : 1, cliente, raw };
+  const data = await queryCrmApi(whatsapp, cedula);
+  const clienteValue = cleanText(data.cliente).toLowerCase();
+  const valor = Number(data.valor ?? (clienteValue === "nuevo" ? 1 : 0));
+  const cliente: CrmStatus = clienteValue === "viejo" || clienteValue === "nuevo" ? clienteValue : valor === 1 ? "nuevo" : "viejo";
+  const raw: Record<string, unknown> = { ...data, source: "check-client-api" };
+  const agente = rawString(raw, ["agente", "asesor", "agent", "assigned_agent", "usuario", "nombre_agente"]);
+  const color = rawString(raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color"]);
+  if (agente) raw.agente = agente;
+  if (color) raw.color = color;
+  return { ok: true, valor, cliente, raw };
 }
 
 export async function checkCedula(cedula: string) {
