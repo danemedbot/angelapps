@@ -29,6 +29,8 @@ export const CRM_ENDPOINT = process.env.CRM_CHECK_ENDPOINT || "https://app.danea
 export const CRM_API_TOKEN = process.env.CRM_API_TOKEN || process.env.CRM_CHECK_TOKEN || "";
 export const CEDULAS_ENDPOINT = process.env.CEDULAS_API_ENDPOINT || "https://cedulas-profesionales.vercel.app/api/cedulas";
 export const SHEET_ID = process.env.GOOGLE_SHEET_ID || "1VQd6et38O5P81NGphmlAVZHy6aaqdPQvZnGCz33jRvg";
+const knownAgents = ["amairani", "amejia", "btostado", "zulay", "bperez2", "selene2", "DISTRITATI", "cristina", "diana", "marisa2", "micaela", "stefany", "moncho", "josecarlos", "katerin", "mariel", "daisy", "lupita", "juan", "pefa", "reison", "distribuidores", "gerson", "temporal"];
+const knownCrmColors = ["Verde - Me ha comprado", "Amarillo - Parece que me va a comprar", "Café - Esperando respuesta", "Naranja - Ha comprado en la empresa pero a mí aún no", "Rojo - Imposible de contactar", "Gris - Nunca responde mis mensajes", "Azul - Debo contactarlo", "Rosado - Cambiarle a otro asesor", "Blanco - Contacto recuperado", "Negro - No desea ser contactado por la empresa", "Vino - Necesita curso de aplicación", "Morado - No aplica por perfil", "Magenta - CLIENTE VETADO", "Índigo - Pendiente Cédula o Carta poder", "Verde Manzana - Cliente NO INYECTABLES", "Verde oscuro - Clientes VIP", "Verde Claro - Cliente Compras Esporádicas", "Vacío"];
 
 export function digits(value: unknown) {
   return String(value ?? "").replace(/\D/g, "");
@@ -36,6 +38,23 @@ export function digits(value: unknown) {
 
 export function cleanText(value: unknown) {
   return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeText(value: string) { return cleanText(value).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
+function normalizeKnownValue(value: string, options: string[]) {
+  const normalized = normalizeText(value);
+  const direct = options.find((option) => normalizeText(option) === normalized || normalized.includes(normalizeText(option)) || normalizeText(option).includes(normalized));
+  if (direct) return direct;
+  return options.find((option) => normalized.startsWith(normalizeText(option.split(" - ")[0]))) || cleanText(value);
+}
+function normalizeAgent(value: string) {
+  const clean = cleanText(value).replace(/^asesor,?\s*(el|la)?\s*/i, "").replace(/^(lic\.?|licenciado|licenciada)\s*/i, "").trim();
+  if (/usuario temporal/i.test(clean)) return "temporal";
+  return normalizeKnownValue(clean, knownAgents);
+}
+function normalizeCrmColor(value: string) {
+  if (!value || normalizeText(value) === "existente") return "";
+  return normalizeKnownValue(value, knownCrmColors);
 }
 
 function rawString(raw: Record<string, unknown> | undefined, keys: string[]) {
@@ -85,7 +104,7 @@ function flattenCrmRaw(data: Record<string, unknown>) {
   };
   for (const [target, keys] of Object.entries(mappings)) {
     const value = rawString(data, keys);
-    if (value) raw[target] = value;
+    if (value) raw[target] = target === "agente" ? normalizeAgent(value) : target === "color" ? normalizeCrmColor(value) : value;
   }
   return raw;
 }

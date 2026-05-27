@@ -13,6 +13,7 @@ const asignadores = ["Angel", "Antonio", "Kiara"];
 const fuentes = ["Instagram Danemed", "Facebook Danemed", "Rejeunesse - Formulario Med-Dent 2026-copy", "Instagram Pink Intimate", "Facebook Pink Intimate", "Web Pink Intimate", "Instagram Rejeunesse", "Facebook Rejeunesse", "Web Rejeunesse", "Instagram LusciousLips", "Facebook LusciousLips", "Formulario lUCIOS LIPS", "Web LusciousLips", "Instagram CursosMedEstetica", "Facebook CursosMedEstetica", "Whatsapp Danemed", "Emagister", "Formulario LAPUROON Aurora"];
 const productos = ["Rejeunesse", "Pink Intimate System", "LusciousLips", "V-Tech System", "ExoTech Gel", "SkinFill BACIO", "Cursos", "Catálogo de Productos", "Kenacort / Triamcinolona", "Renovah", "Toxina Botulínica", "Productos BCN", "Libros", "Hilos PDO", "AGF", "Lapuroon"];
 const agentes = ["amairani", "amejia", "btostado", "zulay", "bperez2", "selene2", "DISTRITATI", "cristina", "diana", "marisa2", "micaela", "stefany", "moncho", "josecarlos", "katerin", "mariel", "daisy", "lupita", "juan", "pefa", "reison", "distribuidores", "gerson", "temporal"];
+const coloresCrm = ["Verde - Me ha comprado", "Amarillo - Parece que me va a comprar", "Café - Esperando respuesta", "Naranja - Ha comprado en la empresa pero a mí aún no", "Rojo - Imposible de contactar", "Gris - Nunca responde mis mensajes", "Azul - Debo contactarlo", "Rosado - Cambiarle a otro asesor", "Blanco - Contacto recuperado", "Negro - No desea ser contactado por la empresa", "Vino - Necesita curso de aplicación", "Morado - No aplica por perfil", "Magenta - CLIENTE VETADO", "Índigo - Pendiente Cédula o Carta poder", "Verde Manzana - Cliente NO INYECTABLES", "Verde oscuro - Clientes VIP", "Verde Claro - Cliente Compras Esporádicas", "Vacío"];
 const profesionesDetectables = [
   { canonical: "Médico", aliases: ["medico"] },
   { canonical: "Cirujano Plástico", aliases: ["cirujano plastico", "cirujano platico"] },
@@ -38,6 +39,21 @@ function digits(value: string) { return value.replace(/\D/g, ""); }
 function titleCase(value: string) { return value.toLowerCase().split(/\s+/).filter(Boolean).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" "); }
 function normalize(value: string) { return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
 function escapeRegExp(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+function normalizeKnownValue(value: string, options: string[]) {
+  const normalized = normalize(value);
+  const direct = options.find((option) => normalize(option) === normalized || normalized.includes(normalize(option)) || normalize(option).includes(normalized));
+  if (direct) return direct;
+  return options.find((option) => normalized.startsWith(normalize(option.split(" - ")[0]))) || value.trim();
+}
+function normalizeAgent(value: string) {
+  const clean = value.replace(/^asesor,?\s*(el|la)?\s*/i, "").replace(/^(lic\.?|licenciado|licenciada)\s*/i, "").trim();
+  if (/usuario temporal/i.test(clean)) return "temporal";
+  return normalizeKnownValue(clean, agentes);
+}
+function normalizeCrmColor(value: string) {
+  if (!value || normalize(value) === "existente") return "";
+  return normalizeKnownValue(value, coloresCrm);
+}
 function detectedProfession(value: string) {
   const normalized = normalize(value).replace(/\s+/g, " ").trim();
   const aliases = profesionesDetectables.flatMap((item) => item.aliases.map((alias) => ({ ...item, alias }))).sort((a, b) => b.alias.length - a.alias.length);
@@ -121,8 +137,8 @@ export default function Home() {
   const profesionCapturada = useMemo(() => detectedProfession(datos), [datos]);
   const activeContact = { ...parsed, ...Object.fromEntries(Object.entries(contact).filter(([, v]) => v)) } as Contact;
   const activeProfession = profesion || profesionCapturada;
-  const crmAgent = rawString(crm?.raw, ["agente", "asesor", "agent", "assigned_agent", "usuario", "nombre_agente", "agente_asignado", "asesor_asignado", "asesor_nombre", "datos_asesor", "vendedor", "usuario_asignado"]);
-  const crmColor = rawString(crm?.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead", "lead_tipo"]) || (crm?.cliente === "viejo" ? colorCrm : "");
+  const crmAgent = normalizeAgent(rawString(crm?.raw, ["agente", "asesor", "agent", "assigned_agent", "usuario", "nombre_agente", "agente_asignado", "asesor_asignado", "asesor_nombre", "datos_asesor", "vendedor", "usuario_asignado"]));
+  const crmColor = normalizeCrmColor(rawString(crm?.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead"])) || (crm?.cliente === "viejo" ? colorCrm : "");
 
   function syncParsed() {
     const next = parseContact(datos);
@@ -159,7 +175,7 @@ export default function Home() {
       setCrm(data.crm);
       if (data.crm.cliente === "viejo") {
         setCrmAnterior("SI");
-        setColorCrm(rawString(data.crm.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead", "lead_tipo"]));
+        setColorCrm(normalizeCrmColor(rawString(data.crm.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead"])));
         setShowCrmModal(true);
       } else {
         setCrmAnterior("NO");
@@ -285,7 +301,7 @@ export default function Home() {
         <Field label="Producto / Interés" required><select value={producto} onChange={(e) => setProducto(e.target.value)}><option value="">-</option>{productos.map((item) => <option key={item}>{item}</option>)}</select></Field>
         <Field label="Datos del contacto" required><textarea value={datos} onChange={(e) => { setDatos(e.target.value); setContact(emptyContact); }} rows={7} placeholder={"Juan Pérez López\n12345678\n5512345678\nMonterrey, Nuevo León\ncorreo@ejemplo.com"} /></Field>
         <div className="detected featured readonly"><h3>Detectado</h3>{activeContact.nombre && <DetectedValue label="Nombre" value={activeContact.nombre} />}{activeContact.cedula && <DetectedValue label="Cédula" value={activeContact.cedula} />}{activeContact.whatsapp && <DetectedValue label="WhatsApp" value={activeContact.whatsapp} />}{activeContact.ciudad && <DetectedValue label="Ciudad" value={activeContact.ciudad} />}{activeContact.correo && <DetectedValue label="Correo" value={activeContact.correo} />}{activeProfession && <DetectedValue label="Profesión" value={activeProfession} highlighted={professionSource === "oficial"} />}{!activeContact.nombre && !activeContact.cedula && !activeContact.whatsapp && !activeContact.ciudad && !activeContact.correo && !activeProfession && <p className="detected-empty">Pega datos del contacto para detectar información.</p>}</div>
-        <div className="stacked-actions"><button className="primary" type="button" disabled={!!busy} onClick={buscarProfesion}>{busy === "profesion" ? "Buscando..." : "Buscar Profesión"}</button><button className="primary" type="button" disabled={!!busy} onClick={buscarCrm}>{busy === "crm" ? "Buscando..." : "Buscar CRM"}</button><div className="crm-fields"><Field label="Agente" required><select value={agente} onChange={(e) => setAgente(e.target.value)}><option value="">-</option>{agentes.map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="CRM Anterior" required><select value={crmAnterior} onChange={(e) => setCrmAnterior(e.target.value)}><option value="">-</option><option>SI</option><option>NO</option></select></Field>{crmAnterior === "SI" && <><Field label="Color CRM" required><input value={colorCrm} onChange={(e) => setColorCrm(e.target.value)} placeholder="Color obtenido del CRM" /></Field><Field label="El contacto es de ese asesor" required><select value={contactoAsesor} onChange={(e) => setContactoAsesor(e.target.value)}><option value="">-</option><option>SI</option><option>NO</option></select></Field></>}</div></div>
+        <div className="stacked-actions"><button className="primary" type="button" disabled={!!busy} onClick={buscarProfesion}>{busy === "profesion" ? "Buscando..." : "Buscar Profesión"}</button><button className="primary" type="button" disabled={!!busy} onClick={buscarCrm}>{busy === "crm" ? "Buscando..." : "Buscar CRM"}</button><div className="crm-fields"><Field label="Agente" required><select value={agente} onChange={(e) => setAgente(e.target.value)}><option value="">-</option>{agentes.map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="CRM Anterior" required><select value={crmAnterior} onChange={(e) => setCrmAnterior(e.target.value)}><option value="">-</option><option>SI</option><option>NO</option></select></Field>{crmAnterior === "SI" && <><Field label="Color CRM" required><select value={colorCrm} onChange={(e) => setColorCrm(e.target.value)}><option value="">-</option>{coloresCrm.map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="El contacto es de ese asesor" required><select value={contactoAsesor} onChange={(e) => setContactoAsesor(e.target.value)}><option value="">-</option><option>SI</option><option>NO</option></select></Field></>}</div></div>
       </div>
       {error && <div className={error.startsWith("Guardado") || error.startsWith("Enviado") ? "alert success" : "alert error"}>{error}</div>}
       <div className="actions"><button className="secondary" type="button" onClick={generarResultado}>Organizar Datos</button><button className="primary" type="button" disabled={!!busy} onClick={enviarTablaYCopiar}>{busy === "save" ? "Enviando..." : "Enviar a Tabla y Copiar"}</button></div>
