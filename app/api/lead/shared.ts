@@ -31,6 +31,7 @@ export const CEDULAS_ENDPOINT = process.env.CEDULAS_API_ENDPOINT || "https://ced
 export const SHEET_ID = process.env.GOOGLE_SHEET_ID || "1VQd6et38O5P81NGphmlAVZHy6aaqdPQvZnGCz33jRvg";
 const knownAgents = ["amairani", "amejia", "btostado", "zulay", "bperez2", "selene2", "DISTRITATI", "cristina", "diana", "marisa2", "micaela", "stefany", "moncho", "josecarlos", "katerin", "mariel", "daisy", "lupita", "juan", "pefa", "reison", "distribuidores", "gerson", "temporal"];
 const knownCrmColors = ["Verde - Me ha comprado", "Amarillo - Parece que me va a comprar", "Café - Esperando respuesta", "Naranja - Ha comprado en la empresa pero a mí aún no", "Rojo - Imposible de contactar", "Gris - Nunca responde mis mensajes", "Azul - Debo contactarlo", "Rosado - Cambiarle a otro asesor", "Blanco - Contacto recuperado", "Negro - No desea ser contactado por la empresa", "Vino - Necesita curso de aplicación", "Morado - No aplica por perfil", "Magenta - CLIENTE VETADO", "Índigo - Pendiente Cédula o Carta poder", "Verde Manzana - Cliente NO INYECTABLES", "Verde oscuro - Clientes VIP", "Verde Claro - Cliente Compras Esporádicas", "Vacío"];
+const defaultExistingCrmColor = "Café - Esperando respuesta";
 
 export function digits(value: unknown) {
   return String(value ?? "").replace(/\D/g, "");
@@ -106,6 +107,7 @@ function flattenCrmRaw(data: Record<string, unknown>) {
     const value = rawString(data, keys);
     if (value) raw[target] = target === "agente" ? normalizeAgent(value) : target === "color" ? normalizeCrmColor(value) : value;
   }
+  if (!raw.color && crmStatusFromApi(data).cliente === "viejo") raw.color = defaultExistingCrmColor;
   return raw;
 }
 

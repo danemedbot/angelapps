@@ -14,6 +14,7 @@ const fuentes = ["Instagram Danemed", "Facebook Danemed", "Rejeunesse - Formular
 const productos = ["Rejeunesse", "Pink Intimate System", "LusciousLips", "V-Tech System", "ExoTech Gel", "SkinFill BACIO", "Cursos", "Catálogo de Productos", "Kenacort / Triamcinolona", "Renovah", "Toxina Botulínica", "Productos BCN", "Libros", "Hilos PDO", "AGF", "Lapuroon"];
 const agentes = ["amairani", "amejia", "btostado", "zulay", "bperez2", "selene2", "DISTRITATI", "cristina", "diana", "marisa2", "micaela", "stefany", "moncho", "josecarlos", "katerin", "mariel", "daisy", "lupita", "juan", "pefa", "reison", "distribuidores", "gerson", "temporal"];
 const coloresCrm = ["Verde - Me ha comprado", "Amarillo - Parece que me va a comprar", "Café - Esperando respuesta", "Naranja - Ha comprado en la empresa pero a mí aún no", "Rojo - Imposible de contactar", "Gris - Nunca responde mis mensajes", "Azul - Debo contactarlo", "Rosado - Cambiarle a otro asesor", "Blanco - Contacto recuperado", "Negro - No desea ser contactado por la empresa", "Vino - Necesita curso de aplicación", "Morado - No aplica por perfil", "Magenta - CLIENTE VETADO", "Índigo - Pendiente Cédula o Carta poder", "Verde Manzana - Cliente NO INYECTABLES", "Verde oscuro - Clientes VIP", "Verde Claro - Cliente Compras Esporádicas", "Vacío"];
+const colorCrmDefaultExistente = "Café - Esperando respuesta";
 const profesionesDetectables = [
   { canonical: "Médico", aliases: ["medico"] },
   { canonical: "Cirujano Plástico", aliases: ["cirujano plastico", "cirujano platico"] },
@@ -138,7 +139,7 @@ export default function Home() {
   const activeContact = { ...parsed, ...Object.fromEntries(Object.entries(contact).filter(([, v]) => v)) } as Contact;
   const activeProfession = profesion || profesionCapturada;
   const crmAgent = normalizeAgent(rawString(crm?.raw, ["agente", "asesor", "agent", "assigned_agent", "usuario", "nombre_agente", "agente_asignado", "asesor_asignado", "asesor_nombre", "datos_asesor", "vendedor", "usuario_asignado"]));
-  const crmColor = normalizeCrmColor(rawString(crm?.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead"])) || (crm?.cliente === "viejo" ? colorCrm : "");
+  const crmColor = normalizeCrmColor(rawString(crm?.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead"])) || (crm?.cliente === "viejo" ? colorCrm || colorCrmDefaultExistente : "");
 
   function syncParsed() {
     const next = parseContact(datos);
@@ -175,7 +176,7 @@ export default function Home() {
       setCrm(data.crm);
       if (data.crm.cliente === "viejo") {
         setCrmAnterior("SI");
-        setColorCrm(normalizeCrmColor(rawString(data.crm.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead"])));
+        setColorCrm(normalizeCrmColor(rawString(data.crm.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead"])) || colorCrmDefaultExistente);
         setShowCrmModal(true);
       } else {
         setCrmAnterior("NO");
