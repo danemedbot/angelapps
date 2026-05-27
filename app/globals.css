@@ -221,3 +221,7 @@ tbody tr.ultima-fila { background: rgba(106, 13, 173, 0.08); }
 .column-decisions > div.selected-column { border-color: var(--brand); background: rgba(106, 13, 173, .06); box-shadow: 0 16px 36px rgba(106, 13, 173, .12); }
 .column-choice { width: 100%; margin-top: 12px; border: 0; border-radius: 16px; padding: 13px 14px; color: white; background: linear-gradient(135deg, var(--brand), var(--brand-2)); font-weight: 950; box-shadow: 0 12px 28px rgba(106,13,173,.18); }
 .column-decisions .selected-column .column-choice::before { content: "✓ "; }
+.login-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at top, rgba(106,13,173,.18), transparent 34%), var(--bg); }
+.login-card { width: min(440px, 100%); background: var(--card); border: 1px solid var(--border); border-radius: 28px; padding: 28px; box-shadow: var(--shadow); display: grid; gap: 16px; }
+.login-card h1 { margin: 0; color: var(--brand); }
+.login-card p { margin: 0; color: var(--muted); }
