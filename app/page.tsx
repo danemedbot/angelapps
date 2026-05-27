@@ -5,18 +5,49 @@ import { useMemo, useState } from "react";
 type Contact = { nombre: string; cedula: string; whatsapp: string; ciudad: string; correo: string };
 type CrmInfo = { cliente: "viejo" | "nuevo" | "desconocido"; valor?: number; raw?: Record<string, unknown> };
 type CedulaInfo = { result: null | { cedula?: string; nombre?: string; carrera?: string; universidad?: string; estado?: string; anio?: string }; source?: string; count?: number };
-type ResultRow = { mes: string; fecha: string; hora: string; fuente: string; nombre: string; whatsapp: string; ciudad: string; cedula: string; profesion: string; agente: string; quienAsigna: string; crmAnterior: string; colorCrm: string; contactoAsesor: string; interes: string };
+type ResultRow = { mes: string; fecha: string; hora: string; fuente: string; nombre: string; whatsapp: string; ciudad: string; cedula: string; profesion: string; agente: string; quienAsigna: string; crmAnterior: string; colorCrm: string; contactoAsesor: string; interes: string; sheetStatus?: "ok" | "error"; sheetMessage?: string };
 
 const emptyContact: Contact = { nombre: "", cedula: "", whatsapp: "", ciudad: "", correo: "" };
 
 const asignadores = ["Angel", "Antonio", "Kiara"];
 const fuentes = ["Instagram Danemed", "Facebook Danemed", "Rejeunesse - Formulario Med-Dent 2026-copy", "Instagram Pink Intimate", "Facebook Pink Intimate", "Web Pink Intimate", "Instagram Rejeunesse", "Facebook Rejeunesse", "Web Rejeunesse", "Instagram LusciousLips", "Facebook LusciousLips", "Formulario lUCIOS LIPS", "Web LusciousLips", "Instagram CursosMedEstetica", "Facebook CursosMedEstetica", "Whatsapp Danemed", "Emagister", "Formulario LAPUROON Aurora"];
 const productos = ["Rejeunesse", "Pink Intimate System", "LusciousLips", "V-Tech System", "ExoTech Gel", "SkinFill BACIO", "Cursos", "Catálogo de Productos", "Kenacort / Triamcinolona", "Renovah", "Toxina Botulínica", "Productos BCN", "Libros", "Hilos PDO", "AGF", "Lapuroon"];
-const agentes = ["amairani", "amejia", "btostado", "zulay", "bperez2", "selene2", "DISTRITATI", "cristina", "diana", "marisa2", "micaela", "stefany", "moncho", "josecarlos", "katerin", "mariel", "daisy", "lupita", "juan", "pefa", "reison", "distribuidores"];
+const agentes = ["amairani", "amejia", "btostado", "zulay", "bperez2", "selene2", "DISTRITATI", "cristina", "diana", "marisa2", "micaela", "stefany", "moncho", "josecarlos", "katerin", "mariel", "daisy", "lupita", "juan", "pefa", "reison", "distribuidores", "gerson", "temporal"];
+const profesionesDetectables = [
+  { canonical: "Médico", aliases: ["medico"] },
+  { canonical: "Cirujano Plástico", aliases: ["cirujano plastico", "cirujano platico"] },
+  { canonical: "Otorrino", aliases: ["otorrino"] },
+  { canonical: "Otorrinolaringología", aliases: ["otorrinolaringologia"] },
+  { canonical: "Otorrinolaringólogo", aliases: ["otorrinolaringologo"] },
+  { canonical: "Ginecología", aliases: ["ginecologia"] },
+  { canonical: "Ginecóloga", aliases: ["ginecologa"] },
+  { canonical: "Dentista", aliases: ["dentista"] },
+  { canonical: "Estomatología", aliases: ["estomatologia"] },
+  { canonical: "Estomatóloga", aliases: ["estomatologa"] },
+  { canonical: "Enfermería", aliases: ["enfermeria"] },
+  { canonical: "Enfermera", aliases: ["enfermera"] },
+  { canonical: "Enfermero", aliases: ["enfermero"] },
+  { canonical: "Cosmetología", aliases: ["cosmetologia"] },
+  { canonical: "Cosmetóloga", aliases: ["cosmetologa"] },
+  { canonical: "Cosmeatría", aliases: ["cosmeatria"] },
+  { canonical: "Cosmeatra", aliases: ["cosmeatra"] },
+  { canonical: "Por definir", aliases: ["por definir"] },
+];
 
 function digits(value: string) { return value.replace(/\D/g, ""); }
 function titleCase(value: string) { return value.toLowerCase().split(/\s+/).filter(Boolean).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" "); }
 function normalize(value: string) { return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
+function escapeRegExp(value: string) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+function detectedProfession(value: string) {
+  const normalized = normalize(value).replace(/\s+/g, " ").trim();
+  const aliases = profesionesDetectables.flatMap((item) => item.aliases.map((alias) => ({ ...item, alias }))).sort((a, b) => b.alias.length - a.alias.length);
+  for (const item of aliases) {
+    const pattern = new RegExp(`(^|[^a-z0-9])${escapeRegExp(item.alias)}([^a-z0-9]|$)`, "i");
+    if (pattern.test(normalized)) return item.canonical;
+  }
+  return "";
+}
+function normalizeProfessionChoice(value: string) { return detectedProfession(value) || value.trim(); }
 function nowParts() {
   const d = new Date();
   return {
@@ -77,7 +108,9 @@ export default function Home() {
   const [busy, setBusy] = useState("");
 
   const parsed = useMemo(() => parseContact(datos), [datos]);
+  const profesionCapturada = useMemo(() => detectedProfession(datos), [datos]);
   const activeContact = { ...parsed, ...Object.fromEntries(Object.entries(contact).filter(([, v]) => v)) } as Contact;
+  const activeProfession = profesion || profesionCapturada;
   const crmAgent = rawString(crm?.raw, ["agente", "asesor", "agent", "assigned_agent", "usuario", "nombre_agente"]);
   const crmColor = rawString(crm?.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color"]) || (crm?.cliente === "viejo" ? colorCrm : "");
 
@@ -129,6 +162,8 @@ export default function Home() {
   }
 
   function usarCapturado() {
+    const capturedProfession = normalizeProfessionChoice(activeProfession);
+    if (capturedProfession) setProfesion(capturedProfession);
     setReviewSource("capturado");
     setProfessionSource("capturado");
   }
@@ -136,7 +171,7 @@ export default function Home() {
   function usarOficial() {
     const result = cedula?.result;
     if (result?.nombre) setContact((c) => ({ ...c, nombre: result.nombre || c.nombre }));
-    if (result?.carrera) setProfesion(result.carrera);
+    if (result?.carrera) setProfesion(normalizeProfessionChoice(result.carrera));
     setReviewSource("oficial");
     setProfessionSource("oficial");
   }
@@ -175,7 +210,7 @@ export default function Home() {
     if (missing.length) throw new Error(`Faltan estos datos: ${missing.join(", ")}.`);
     const productosEspeciales = ["Rejeunesse", "Pink Intimate System", "LusciousLips", "Hilos PDO", "Lapuroon"];
     const tieneFormulario = fuente.includes("Formulario");
-    const finalProfesion = titleCase(profesion || "Por Definir");
+    const finalProfesion = titleCase(normalizeProfessionChoice(profesion || profesionCapturada || "Por Definir"));
     const encabezado = tieneFormulario
       ? `*Contacto Campaña ${titleCase(producto)}*\n${fuente}`
       : productosEspeciales.includes(producto)
@@ -203,17 +238,27 @@ export default function Home() {
   async function enviarTablaYCopiar() {
     setError("");
     setBusy("save");
+    let built: ReturnType<typeof buildOrganizedData> | null = null;
     try {
-      const { text, row, finalContact } = buildOrganizedData();
+      built = buildOrganizedData();
+      const { text, row, finalContact } = built;
       setResultado(text);
       const body = { quienAsigna, fuente, producto, agente, nombre: finalContact.nombre, whatsapp: finalContact.whatsapp, ciudad: finalContact.ciudad, cedula: finalContact.cedula, interes: producto, eraDeEseAsesor: contactoAsesor || "N/A" };
       const response = await fetch("/api/lead/submit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const data = await response.json();
-      if (!response.ok || data?.ok === false) throw new Error(data?.errors?.join(" ") || "No se pudo guardar.");
-      setRows((current) => [row, ...current]);
-      await navigator.clipboard.writeText(text);
-      setError(`Enviado a tabla y copiado. Guardado en ${data.sheet?.updatedRange || "Google Sheets"}`);
-    } catch (e) { setError(e instanceof Error ? e.message : "No se pudo enviar a tabla y copiar."); }
+      if (!response.ok || data?.ok === false) throw new Error(data?.errors?.join(" ") || "No se pudo guardar en Google Sheets.");
+      setRows((current) => [{ ...row, sheetStatus: "ok", sheetMessage: data.sheet?.updatedRange || "Google Sheets" }, ...current]);
+      try {
+        await navigator.clipboard.writeText(text);
+        setError(`Enviado a tabla y copiado. Guardado en ${data.sheet?.updatedRange || "Google Sheets"}`);
+      } catch {
+        setError(`Guardado en ${data.sheet?.updatedRange || "Google Sheets"}, pero no se pudo copiar al portapapeles.`);
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "No se pudo enviar a tabla y copiar.";
+      if (built) setRows((current) => [{ ...built!.row, sheetStatus: "error", sheetMessage: message }, ...current]);
+      setError(message);
+    }
     finally { setBusy(""); }
   }
 
@@ -229,19 +274,13 @@ export default function Home() {
         <Field label="Fuente" required><select value={fuente} onChange={(e) => setFuente(e.target.value)}><option value="">-</option>{fuentes.map((item) => <option key={item}>{item}</option>)}</select></Field>
         <Field label="Producto / Interés" required><select value={producto} onChange={(e) => setProducto(e.target.value)}><option value="">-</option>{productos.map((item) => <option key={item}>{item}</option>)}</select></Field>
         <Field label="Datos del contacto" required><textarea value={datos} onChange={(e) => { setDatos(e.target.value); setContact(emptyContact); }} rows={7} placeholder={"Juan Pérez López\n12345678\n5512345678\nMonterrey, Nuevo León\ncorreo@ejemplo.com"} /></Field>
-        <div className="detected featured readonly"><h3>Detectado</h3>{activeContact.nombre && <DetectedValue label="Nombre" value={activeContact.nombre} />}{activeContact.cedula && <DetectedValue label="Cédula" value={activeContact.cedula} />}{activeContact.whatsapp && <DetectedValue label="WhatsApp" value={activeContact.whatsapp} />}{activeContact.ciudad && <DetectedValue label="Ciudad" value={activeContact.ciudad} />}{activeContact.correo && <DetectedValue label="Correo" value={activeContact.correo} />}{profesion && <DetectedValue label="Profesión" value={profesion} highlighted={professionSource === "oficial"} />}{!activeContact.nombre && !activeContact.cedula && !activeContact.whatsapp && !activeContact.ciudad && !activeContact.correo && !profesion && <p className="detected-empty">Pega datos del contacto para detectar información.</p>}</div>
-        <div className="stacked-actions"><button className="primary" type="button" disabled={!!busy} onClick={buscarProfesion}>{busy === "profesion" ? "Buscando..." : "Buscar Profesión"}</button><button className="primary" type="button" disabled={!!busy} onClick={buscarCrm}>{busy === "crm" ? "Buscando..." : "Buscar CRM"}</button></div>
+        <div className="detected featured readonly"><h3>Detectado</h3>{activeContact.nombre && <DetectedValue label="Nombre" value={activeContact.nombre} />}{activeContact.cedula && <DetectedValue label="Cédula" value={activeContact.cedula} />}{activeContact.whatsapp && <DetectedValue label="WhatsApp" value={activeContact.whatsapp} />}{activeContact.ciudad && <DetectedValue label="Ciudad" value={activeContact.ciudad} />}{activeContact.correo && <DetectedValue label="Correo" value={activeContact.correo} />}{activeProfession && <DetectedValue label="Profesión" value={activeProfession} highlighted={professionSource === "oficial"} />}{!activeContact.nombre && !activeContact.cedula && !activeContact.whatsapp && !activeContact.ciudad && !activeContact.correo && !activeProfession && <p className="detected-empty">Pega datos del contacto para detectar información.</p>}</div>
+        <div className="stacked-actions"><button className="primary" type="button" disabled={!!busy} onClick={buscarProfesion}>{busy === "profesion" ? "Buscando..." : "Buscar Profesión"}</button><button className="primary" type="button" disabled={!!busy} onClick={buscarCrm}>{busy === "crm" ? "Buscando..." : "Buscar CRM"}</button><div className="crm-fields"><Field label="Agente" required><select value={agente} onChange={(e) => setAgente(e.target.value)}><option value="">-</option>{agentes.map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="CRM Anterior" required><select value={crmAnterior} onChange={(e) => setCrmAnterior(e.target.value)}><option value="">-</option><option>SI</option><option>NO</option></select></Field>{crmAnterior === "SI" && <><Field label="Color CRM" required><input value={colorCrm} onChange={(e) => setColorCrm(e.target.value)} placeholder="Color obtenido del CRM" /></Field><Field label="El contacto es de ese asesor" required><select value={contactoAsesor} onChange={(e) => setContactoAsesor(e.target.value)}><option value="">-</option><option>SI</option><option>NO</option></select></Field></>}</div></div>
       </div>
-      <div className="section-title second"><span>02</span><div><h2>Asignación CRM</h2><p>Campos derivados de la consulta CRM, respetando la operación actual.</p></div></div>
-      <div className="grid three small-gap">
-        <Field label="Agente" required><select value={agente} onChange={(e) => setAgente(e.target.value)}><option value="">-</option>{agentes.map((item) => <option key={item}>{item}</option>)}</select></Field>
-        <Field label="CRM Anterior" required><select value={crmAnterior} onChange={(e) => setCrmAnterior(e.target.value)}><option value="">-</option><option>SI</option><option>NO</option></select></Field>
-        {crmAnterior === "SI" && <><Field label="Color CRM" required><input value={colorCrm} onChange={(e) => setColorCrm(e.target.value)} placeholder="Color obtenido del CRM" /></Field><Field label="El contacto es de ese asesor" required><select value={contactoAsesor} onChange={(e) => setContactoAsesor(e.target.value)}><option value="">-</option><option>SI</option><option>NO</option></select></Field></>}
-      </div>
-      {error && <div className={error.startsWith("Guardado") ? "alert success" : "alert error"}>{error}</div>}
+      {error && <div className={error.startsWith("Guardado") || error.startsWith("Enviado") ? "alert success" : "alert error"}>{error}</div>}
       <div className="actions"><button className="secondary" type="button" onClick={generarResultado}>Organizar Datos</button><button className="primary" type="button" disabled={!!busy} onClick={enviarTablaYCopiar}>{busy === "save" ? "Enviando..." : "Enviar a Tabla y Copiar"}</button></div>
     </section>
-    {resultado && <section className="lead-card result-output"><div className="section-title"><span>03</span><div><h2>Resultado</h2><p>Formato compatible con datos.danemed.com</p></div></div><pre>{resultado}</pre><button className="secondary" type="button" onClick={() => navigator.clipboard.writeText(resultado)}>Copiar resultado</button></section>}
+    {resultado && <section className="lead-card result-output"><div className="section-title"><span>03</span><div><h2>Resultado</h2><p>Formato compatible con datos.danemed.com</p></div></div><pre>{resultado}</pre><button className="primary" type="button" disabled={!!busy} onClick={enviarTablaYCopiar}>{busy === "save" ? "Enviando..." : "Enviar a Tabla y Copiar"}</button></section>}
 
     <section className="lead-card table-card">
       <div className="section-title"><span>04</span><div><h2>Tabla</h2><p>Misma estructura visual y operativa de datos.danemed.com</p></div></div>
@@ -249,14 +288,13 @@ export default function Home() {
         <table>
           <thead><tr><th>Mes</th><th>Fecha</th><th>Hora</th><th>Fuente</th><th>Nombre</th><th>Whatsapp</th><th>Ciudad</th><th>Cédula</th><th>Profesión</th><th>Agente</th><th>Quién asigna</th><th>CRM Anterior</th><th>Color CRM</th><th>Era de ese Asesor?</th><th>Interés</th><th>Acciones</th></tr></thead>
           <tbody>
-            {rows.length === 0 ? <tr><td colSpan={16} className="empty-cell">Aún no hay filas enviadas desde esta sesión.</td></tr> : rows.map((row, index) => <tr key={`${row.whatsapp}-${index}`} className={index === 0 ? "ultima-fila" : ""}><td>{row.mes}</td><td>{row.fecha}</td><td>{row.hora}</td><td>{row.fuente}</td><td>{row.nombre}</td><td>{row.whatsapp}</td><td>{row.ciudad}</td><td>{row.cedula}</td><td>{row.profesion}</td><td>{row.agente}</td><td>{row.quienAsigna}</td><td>{row.crmAnterior}</td><td>{row.colorCrm}</td><td>{row.contactoAsesor}</td><td>{row.interes}</td><td><button className="boton-eliminar" type="button" onClick={() => removeRow(index)}>Eliminar</button></td></tr>)}
+            {rows.length === 0 ? <tr><td colSpan={16} className="empty-cell">Aún no hay filas enviadas desde esta sesión.</td></tr> : rows.map((row, index) => <tr key={`${row.whatsapp}-${index}`} className={index === 0 ? "ultima-fila" : ""}><td>{row.mes}</td><td>{row.fecha}</td><td>{row.hora}</td><td>{row.fuente}</td><td>{row.nombre}</td><td>{row.whatsapp}</td><td>{row.ciudad}</td><td>{row.cedula}</td><td>{row.profesion}</td><td>{row.agente}</td><td>{row.quienAsigna}</td><td>{row.crmAnterior}</td><td>{row.colorCrm}</td><td>{row.contactoAsesor}</td><td>{row.interes}</td><td><div className={`sheet-status ${row.sheetStatus === "ok" ? "ok" : "error"}`} title={row.sheetMessage || "Google Sheets"}><span>{row.sheetStatus === "ok" ? "✓" : "✕"}</span><small>{row.sheetStatus === "ok" ? "Google Sheet" : "No copiado"}</small></div><button className="boton-eliminar" type="button" onClick={() => removeRow(index)}>Eliminar</button></td></tr>)}
           </tbody>
         </table>
       </div>
-      <div className="actions"><button className="secondary" type="button" onClick={() => navigator.clipboard.writeText(rows.map((r) => [r.mes, r.fecha, r.hora, r.fuente, r.nombre, r.whatsapp, r.ciudad, r.cedula, r.profesion, r.agente, r.quienAsigna, r.crmAnterior, r.colorCrm, r.contactoAsesor, r.interes].join("\t")).join("\n"))}>Copiar Tabla</button></div>
     </section>
 
-    {showProfessionModal && <div className="modal-backdrop"><section className={cedula?.result ? "modal wide" : "modal simple-modal"}>{!cedula?.result ? <><button className="close" type="button" onClick={() => setShowProfessionModal(false)} aria-label="Cerrar">×</button><p className="eyebrow">Consulta de profesión</p><div className="empty-state"><span className="empty-icon">×</span><h2>No se encontró información con esa cédula.</h2><p>Revisa el número capturado e intenta nuevamente.</p></div></> : <><p className="eyebrow">Comparativo de profesión</p><h2>Elige qué columna se usará</h2><div className="compare column-decisions"><div className={reviewSource === "capturado" ? "selected-column" : ""}><h3>Capturado</h3><ReviewLine label="Nombre" value={activeContact.nombre} /><ReviewLine label="Profesión" value={profesion || "Sin profesión capturada"} /><button className="column-choice" type="button" onClick={usarCapturado}>Usar datos capturados</button></div><div className={reviewSource === "oficial" ? "selected-column" : ""}><h3>Consulta oficial</h3><ReviewLine label="Nombre" value={cedula.result.nombre || "Sin resultado"} /><ReviewLine label="Profesión" value={cedula.result.carrera || "Sin resultado"} /><button className="column-choice" type="button" onClick={usarOficial}>Usar datos oficiales</button></div></div><p className="modal-hint">Selecciona una columna completa para definir nombre y profesión.</p><div className="modal-actions"><button className="primary" disabled={!reviewSource} onClick={() => setShowProfessionModal(false)}>Continuar</button></div></>}</section></div>}
+    {showProfessionModal && <div className="modal-backdrop"><section className={cedula?.result ? "modal wide" : "modal simple-modal"}>{!cedula?.result ? <><button className="close" type="button" onClick={() => setShowProfessionModal(false)} aria-label="Cerrar">×</button><p className="eyebrow">Consulta de profesión</p><div className="empty-state"><span className="empty-icon">×</span><h2>No se encontró información con esa cédula.</h2><p>Revisa el número capturado e intenta nuevamente.</p></div></> : <><p className="eyebrow">Comparativo de profesión</p><h2>Elige qué columna se usará</h2><div className="compare column-decisions"><div className={reviewSource === "capturado" ? "selected-column" : ""}><h3>Capturado</h3><ReviewLine label="Nombre" value={activeContact.nombre} /><ReviewLine label="Profesión" value={activeProfession || "Sin profesión capturada"} /><button className="column-choice" type="button" onClick={usarCapturado}>Usar datos capturados</button></div><div className={reviewSource === "oficial" ? "selected-column" : ""}><h3>Consulta oficial</h3><ReviewLine label="Nombre" value={cedula.result.nombre || "Sin resultado"} /><ReviewLine label="Profesión" value={cedula.result.carrera ? normalizeProfessionChoice(cedula.result.carrera) : "Sin resultado"} /><button className="column-choice" type="button" onClick={usarOficial}>Usar datos oficiales</button></div></div><p className="modal-hint">Selecciona una columna completa para definir nombre y profesión.</p><div className="modal-actions"><button className="primary" disabled={!reviewSource} onClick={() => setShowProfessionModal(false)}>Continuar</button></div></>}</section></div>}
 
     {showCrmModal && <div className="modal-backdrop"><section className={crm?.cliente === "viejo" ? "modal" : "modal simple-modal"}>{crm?.cliente === "viejo" ? <><p className="eyebrow">Resultado CRM</p><h2>Contacto existente</h2><ReviewLine label="Agente asignado" value={crmAgent || "El CRM no devolvió agente"} /><ReviewLine label="Color CRM" value={crmColor || "El CRM no devolvió color"} /><p className="subtitle small">¿Desea mantener la asignación actual o reasignar este contacto?</p><div className="modal-actions"><button className="secondary" onClick={reasignar}>Reasignar</button><button className="primary" onClick={mantenerAsignacion}>Mantener asignación</button></div></> : <><button className="close" type="button" onClick={() => setShowCrmModal(false)} aria-label="Cerrar">×</button><p className="eyebrow">Resultado CRM</p><div className="empty-state"><span className="empty-icon">×</span><h2>El contacto no existe en CRM.</h2><p>Se marcó automáticamente CRM Anterior como NO.</p></div></>}</section></div>}
   </main>;

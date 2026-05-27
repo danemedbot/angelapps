@@ -124,6 +124,8 @@ button:disabled { cursor: not-allowed; opacity: .62; }
 .detected h3 { margin: 0 0 10px; color: var(--ink); font-size: 18px; }
 .detected p { margin: 6px 0; line-height: 1.35; overflow-wrap: anywhere; }
 .stacked-actions { display: grid; gap: 12px; align-content: start; padding-top: 24px; }
+.crm-fields { display: grid; gap: 12px; margin-top: 2px; padding: 14px; border: 1px solid var(--line); border-radius: 22px; background: rgba(255,255,255,.72); }
+.crm-fields .field { margin-bottom: 0; }
 .result-output pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 16px; padding: 18px; border-radius: 18px; background: #fff; border: 1px solid var(--line); line-height: 1.55; font-family: inherit; }
 .modal.wide { width: min(940px, 100%); }
 .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0; }
@@ -135,18 +137,23 @@ button:disabled { cursor: not-allowed; opacity: .62; }
 @media (max-width: 560px) { .decision-grid { grid-template-columns: 1fr; } }
 
 /* Tabla compatible datos.danemed.com */
-.table-card { padding: 0; overflow: hidden; }
+.table-card { width: calc(100vw - 28px); margin-left: calc(50% - 50vw + 14px); padding: 0; overflow: hidden; }
 .table-card .section-title { padding: 20px 20px 0; }
-.table-wrapper { overflow-x: auto; border-radius: 0 0 var(--radius) var(--radius); box-shadow: var(--shadow); }
-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; table-layout: fixed; background: #fff; }
+.table-wrapper { width: 100%; overflow-x: auto; border-radius: 0 0 34px 34px; box-shadow: var(--shadow); }
+table { width: 100%; min-width: 1540px; border-collapse: collapse; font-size: 0.72rem; table-layout: auto; background: #fff; }
 thead th { background: linear-gradient(135deg, #2D004B, #6A0DAD, #9B30FF); color: #fff; padding: 10px 6px; text-align: left; font-weight: 700; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 tbody td { padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: normal; word-wrap: break-word; overflow-wrap: break-word; }
 tbody tr:nth-child(even) { background: #FAFAFF; }
 tbody tr:hover { background: rgba(106, 13, 173, 0.04); }
 tbody tr.ultima-fila { background: rgba(106, 13, 173, 0.08); }
+.sheet-status { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-weight: 900; white-space: nowrap; }
+.sheet-status span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: #fff; line-height: 1; }
+.sheet-status small { color: var(--muted); font-size: 0.66rem; font-weight: 800; }
+.sheet-status.ok span { background: #12a150; }
+.sheet-status.error span { background: var(--danger); }
 .boton-eliminar { padding: 4px 10px; background: var(--danger); color: #fff; border: none; border-radius: 14px; font-size: 0.68rem; font-weight: 700; cursor: pointer; }
 .empty-cell { text-align: center; color: var(--muted); padding: 20px !important; }
-@media (max-width: 768px) { table { table-layout: auto; font-size: 0.72rem; } }
+@media (max-width: 768px) { table { font-size: 0.72rem; } }
 
 /* Decisiones inline del modal de profesión */
 .inline-decisions .review { min-height: 104px; }
