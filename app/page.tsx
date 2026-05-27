@@ -121,8 +121,8 @@ export default function Home() {
   const profesionCapturada = useMemo(() => detectedProfession(datos), [datos]);
   const activeContact = { ...parsed, ...Object.fromEntries(Object.entries(contact).filter(([, v]) => v)) } as Contact;
   const activeProfession = profesion || profesionCapturada;
-  const crmAgent = rawString(crm?.raw, ["agente", "asesor", "agent", "assigned_agent", "usuario", "nombre_agente", "agente_asignado", "asesor_asignado", "vendedor", "usuario_asignado"]);
-  const crmColor = rawString(crm?.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead"]) || (crm?.cliente === "viejo" ? colorCrm : "");
+  const crmAgent = rawString(crm?.raw, ["agente", "asesor", "agent", "assigned_agent", "usuario", "nombre_agente", "agente_asignado", "asesor_asignado", "asesor_nombre", "datos_asesor", "vendedor", "usuario_asignado"]);
+  const crmColor = rawString(crm?.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead", "lead_tipo"]) || (crm?.cliente === "viejo" ? colorCrm : "");
 
   function syncParsed() {
     const next = parseContact(datos);
@@ -159,7 +159,7 @@ export default function Home() {
       setCrm(data.crm);
       if (data.crm.cliente === "viejo") {
         setCrmAnterior("SI");
-        setColorCrm(rawString(data.crm.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead"]));
+        setColorCrm(rawString(data.crm.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead", "lead_tipo"]));
         setShowCrmModal(true);
       } else {
         setCrmAnterior("NO");

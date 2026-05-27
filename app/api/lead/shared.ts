@@ -77,10 +77,10 @@ function crmStatusFromApi(data: Record<string, unknown>): { cliente: CrmStatus; 
 function flattenCrmRaw(data: Record<string, unknown>) {
   const raw: Record<string, unknown> = { ...data, source: "check-client-api" };
   const mappings: Record<string, string[]> = {
-    agente: ["agente", "asesor", "agent", "assigned_agent", "usuario", "nombre_agente", "agente_asignado", "asesor_asignado", "vendedor", "usuario_asignado"],
-    color: ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead"],
+    agente: ["agente", "asesor", "agent", "assigned_agent", "usuario", "nombre_agente", "agente_asignado", "asesor_asignado", "asesor_nombre", "datos_asesor", "vendedor", "usuario_asignado"],
+    color: ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead", "lead_tipo"],
     nombre: ["nombre", "name", "cliente_nombre", "nombre_cliente"],
-    whatsapp: ["whatsapp", "telefono", "teléfono", "celular", "phone"],
+    whatsapp: ["whatsapp", "telefono", "teléfono", "celular", "phone", "numero_asesor", "asesor_whatsapp"],
     cedula: ["cedula", "cédula", "cedula_profesional", "cedulaProf"],
   };
   for (const [target, keys] of Object.entries(mappings)) {
