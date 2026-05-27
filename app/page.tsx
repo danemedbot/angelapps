@@ -251,7 +251,7 @@ export default function Home() {
     const crmPrefix = crmAnterior === "SI"
       ? contactoAsesor === "SI" ? "Existe en CRM y *es tuyo*\n" : "Existe en CRM, se te *REASIGNÓ*\n"
       : "Contacto *NUEVO* *️⃣\n\n";
-    const colorLine = crmAnterior === "SI" ? `Color: ${colorCrm}\n` : "";
+    const colorLine = crmAnterior === "SI" ? `Color: ${colorCrm}\n\n` : "";
     const text = `${crmPrefix}${colorLine}${encabezado}\n\n${titleCase(finalContact.nombre)}\nCiudad: ${titleCase(finalContact.ciudad)}\n${finalContact.correo ? `Correo: ${finalContact.correo}\n` : ""}Cédula Prof: ${finalContact.cedula}\nProfesión: ${finalProfesion}\nWhatsapp: ${finalContact.whatsapp}\n\nInterés en *${titleCase(producto)}*`;
     const fh = nowParts();
     const row: ResultRow = { mes: fh.mes, fecha: fh.fecha, hora: fh.hora, fuente, nombre: titleCase(finalContact.nombre), whatsapp: finalContact.whatsapp, ciudad: titleCase(finalContact.ciudad), cedula: finalContact.cedula, profesion: finalProfesion, agente, quienAsigna, crmAnterior, colorCrm: crmAnterior === "SI" ? colorCrm : "N/A", contactoAsesor: crmAnterior === "SI" ? contactoAsesor : "N/A", interes: titleCase(producto) };
@@ -283,6 +283,19 @@ export default function Home() {
       const data = await response.json();
       if (!response.ok || data?.ok === false) throw new Error(data?.errors?.join(" ") || "No se pudo guardar en Google Sheets.");
       setRows((current) => [{ ...row, sheetStatus: "ok", sheetMessage: data.sheet?.updatedRange || "Google Sheets" }, ...current]);
+      setQuienAsigna("");
+      setFuente("");
+      setProducto("");
+      setDatos("");
+      setContact(emptyContact);
+      setProfesion("");
+      setProfessionSource("");
+      setAgente("");
+      setCrmAnterior("");
+      setColorCrm("");
+      setContactoAsesor("");
+      setCrm(null);
+      setCedula(null);
       try {
         await navigator.clipboard.writeText(text);
         setError(`Enviado a tabla y copiado. Guardado en ${data.sheet?.updatedRange || "Google Sheets"}`);
@@ -295,10 +308,6 @@ export default function Home() {
       setError(message);
     }
     finally { setBusy(""); }
-  }
-
-  function removeRow(index: number) {
-    setRows((current) => current.filter((_, i) => i !== index));
   }
 
   return <main className="page-shell compact">
@@ -323,7 +332,7 @@ export default function Home() {
         <table>
           <thead><tr><th>Mes</th><th>Fecha</th><th>Hora</th><th>Fuente</th><th>Nombre</th><th>Whatsapp</th><th>Ciudad</th><th>Cédula</th><th>Profesión</th><th>Agente</th><th>Quién asigna</th><th>CRM Anterior</th><th>Color CRM</th><th>Era de ese Asesor?</th><th>Interés</th><th>Acciones</th></tr></thead>
           <tbody>
-            {rows.length === 0 ? <tr><td colSpan={16} className="empty-cell">Aún no hay filas enviadas desde esta sesión.</td></tr> : rows.map((row, index) => <tr key={`${row.whatsapp}-${index}`} className={index === 0 ? "ultima-fila" : ""}><td>{row.mes}</td><td>{row.fecha}</td><td>{row.hora}</td><td>{row.fuente}</td><td>{row.nombre}</td><td>{row.whatsapp}</td><td>{row.ciudad}</td><td>{row.cedula}</td><td>{row.profesion}</td><td>{row.agente}</td><td>{row.quienAsigna}</td><td>{row.crmAnterior}</td><td>{row.colorCrm}</td><td>{row.contactoAsesor}</td><td>{row.interes}</td><td><div className={`sheet-status ${row.sheetStatus === "ok" ? "ok" : "error"}`} title={row.sheetMessage || "Google Sheets"}><span>{row.sheetStatus === "ok" ? "✓" : "✕"}</span><small>{row.sheetStatus === "ok" ? "Google Sheet" : "No copiado"}</small></div><button className="boton-eliminar" type="button" onClick={() => removeRow(index)}>Eliminar</button></td></tr>)}
+            {rows.length === 0 ? <tr><td colSpan={16} className="empty-cell">Aún no hay filas enviadas desde esta sesión.</td></tr> : rows.map((row, index) => <tr key={`${row.whatsapp}-${index}`} className={index === 0 ? "ultima-fila" : ""}><td>{row.mes}</td><td>{row.fecha}</td><td>{row.hora}</td><td>{row.fuente}</td><td>{row.nombre}</td><td>{row.whatsapp}</td><td>{row.ciudad}</td><td>{row.cedula}</td><td>{row.profesion}</td><td>{row.agente}</td><td>{row.quienAsigna}</td><td>{row.crmAnterior}</td><td>{row.colorCrm}</td><td>{row.contactoAsesor}</td><td>{row.interes}</td><td><div className={`sheet-status ${row.sheetStatus === "ok" ? "ok" : "error"}`} title={row.sheetMessage || "Google Sheets"}><span>{row.sheetStatus === "ok" ? "✓" : "✕"}</span><small>{row.sheetStatus === "ok" ? "Google Sheet" : "No copiado"}</small></div></td></tr>)}
           </tbody>
         </table>
       </div>
