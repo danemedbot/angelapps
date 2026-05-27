@@ -249,7 +249,7 @@ export default function Home() {
         ? `*Contacto Campaña ${titleCase(producto)}:*`
         : `*Contacto ${fuente}:*`;
     const crmPrefix = crmAnterior === "SI"
-      ? contactoAsesor === "SI" ? `Existe en CRM y *es tuyo*, ${colorCrm}\n\n` : `Existe en CRM, se te *REASIGNÓ*, ${colorCrm}\n\n`
+      ? contactoAsesor === "SI" ? "Existe en CRM y *es tuyo*\n" : "Existe en CRM, se te *REASIGNÓ*\n"
       : "Contacto *NUEVO* *️⃣\n\n";
     const colorLine = crmAnterior === "SI" ? `Color: ${colorCrm}\n` : "";
     const text = `${crmPrefix}${colorLine}${encabezado}\n\n${titleCase(finalContact.nombre)}\nCiudad: ${titleCase(finalContact.ciudad)}\n${finalContact.correo ? `Correo: ${finalContact.correo}\n` : ""}Cédula Prof: ${finalContact.cedula}\nProfesión: ${finalProfesion}\nWhatsapp: ${finalContact.whatsapp}\n\nInterés en *${titleCase(producto)}*`;
