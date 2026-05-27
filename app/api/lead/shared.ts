@@ -25,7 +25,7 @@ export type LeadPayload = {
   eraDeEseAsesor?: string;
 };
 
-export const CRM_ENDPOINT = "https://app.daneapp.com/danemed/index.php/clientes/consultarcliente";
+export const CRM_ENDPOINT = process.env.CRM_CHECK_ENDPOINT || "https://app.daneapp.com/danemed/index.php/clientes/consultarcliente";
 export const CEDULAS_ENDPOINT = process.env.CEDULAS_API_ENDPOINT || "https://cedulas-profesionales.vercel.app/api/cedulas";
 export const SHEET_ID = process.env.GOOGLE_SHEET_ID || "1VQd6et38O5P81NGphmlAVZHy6aaqdPQvZnGCz33jRvg";
 
@@ -114,12 +114,18 @@ function nearestKnownValue(text: string, values: string[]) {
 
 function parseCrmWebResult(html: string, mode: "telefono" | "cedula", query: string) {
   const text = htmlText(html);
+  if (/Inicio de Sesión Invalido|Iniciar Sesión|Olvidé mi Contraseña/i.test(text)) {
+    throw new Error("El CRM respondió pantalla de login; la consulta no está autenticada.");
+  }
   const countMatch = text.match(/Usuarios que coinciden con el parametro a buscar\s*\((\d+)\)/i);
+  if (!countMatch) {
+    throw new Error("El CRM respondió un formato inesperado; no se pudo confirmar si el contacto existe.");
+  }
   const count = countMatch ? Number(countMatch[1]) : 0;
   const raw: Record<string, unknown> = { source: "consultarcliente-web", mode, query, count, text: text.slice(0, 6000) };
   if (count <= 0) return { count, raw };
 
-  const knownAgents = ["admin", "laprueba", "rgonzalez", "amairani", "amejia", "btostado", "zulay", "bperez2", "selene2", "DISTRITATI", "cristina", "diana", "marisa2", "micaela", "stefany", "moncho", "josecarlos", "katerin", "mariel", "daisy", "lupita", "juan", "pefa", "reison", "distribuidores"];
+  const knownAgents = ["admin", "laprueba", "rgonzalez", "amairani", "amejia", "btostado", "zulay", "bperez2", "selene2", "DISTRITATI", "cristina", "diana", "marisa2", "micaela", "stefany", "moncho", "josecarlos", "katerin", "mariel", "daisy", "lupita", "juan", "pefa", "reison", "distribuidores", "gerson", "temporal"];
   const knownColors = ["Contacto cafe CRM", "Contacto gris CRM", "Contacto verde claro CRM", "Contacto verde CRM", "Contacto amarillo CRM", "Contacto sin color CRM", "Contacto rosa CRM", "Contacto naranja CRM", "Contacto morado CRM", "Contacto azul CRM", "Contacto rojo CRM", "Verde - Me ha comprado", "Amarillo - Para seguimiento", "Rojo", "Azul", "Morado", "Naranja", "Rosa"];
 
   // La página del CRM trae selects con todas las opciones; antes el parser tomaba el texto completo
