@@ -132,6 +132,7 @@ export default function Home() {
   const [resultado, setResultado] = useState("");
   const [rows, setRows] = useState<ResultRow[]>([]);
   const [error, setError] = useState("");
+  const [missingFields, setMissingFields] = useState<string[]>([]);
   const [busy, setBusy] = useState("");
 
   const parsed = useMemo(() => parseContact(datos), [datos]);
@@ -159,7 +160,11 @@ export default function Home() {
       setCedula(data.cedula);
       setReviewSource("");
       setShowProfessionModal(true);
-    } catch (e) { setError(e instanceof Error ? e.message : "No se pudo consultar la profesión."); }
+    } catch (e) {
+      setCedula({ result: null, source: e instanceof Error ? e.message : "No se pudo consultar la profesión." });
+      setReviewSource("");
+      setShowProfessionModal(true);
+    }
     finally { setBusy(""); }
   }
 
@@ -197,7 +202,6 @@ export default function Home() {
 
   function usarOficial() {
     const result = cedula?.result;
-    if (result?.nombre) setContact((c) => ({ ...c, nombre: result.nombre || c.nombre }));
     if (result?.carrera) setProfesion(normalizeProfessionChoice(result.carrera));
     setReviewSource("oficial");
     setProfessionSource("oficial");
@@ -221,20 +225,21 @@ export default function Home() {
   function buildOrganizedData() {
     const found = syncParsed();
     const finalContact = { ...found, ...Object.fromEntries(Object.entries(contact).filter(([, v]) => v)) } as Contact;
-    const missing: string[] = [];
-    if (!quienAsigna) missing.push("Quién asignará");
-    if (!fuente) missing.push("Fuente");
-    if (!producto) missing.push("Producto / Interés");
-    if (!agente) missing.push("Agente");
-    if (!crmAnterior) missing.push("CRM Anterior");
-    if (!finalContact.nombre) missing.push("Nombre");
-    if (!finalContact.whatsapp) missing.push("WhatsApp");
-    else if (finalContact.whatsapp.length !== 10) missing.push("WhatsApp debe tener exactamente 10 dígitos");
-    if (!finalContact.cedula) missing.push("Cédula");
-    if (!finalContact.ciudad) missing.push("Ciudad");
-    if (crmAnterior === "SI" && !colorCrm) missing.push("Color CRM");
-    if (crmAnterior === "SI" && !contactoAsesor) missing.push("El contacto es de ese asesor");
-    if (missing.length) throw new Error(`Faltan estos datos: ${missing.join(", ")}.`);
+    const missing: { key: string; label: string }[] = [];
+    if (!quienAsigna) missing.push({ key: "quienAsigna", label: "Quién asignará" });
+    if (!fuente) missing.push({ key: "fuente", label: "Fuente" });
+    if (!producto) missing.push({ key: "producto", label: "Producto / Interés" });
+    if (!agente) missing.push({ key: "agente", label: "Agente" });
+    if (!crmAnterior) missing.push({ key: "crmAnterior", label: "CRM Anterior" });
+    if (!finalContact.nombre) missing.push({ key: "nombre", label: "Nombre" });
+    if (!finalContact.whatsapp) missing.push({ key: "whatsapp", label: "WhatsApp" });
+    else if (finalContact.whatsapp.length !== 10) missing.push({ key: "whatsapp", label: "WhatsApp debe tener exactamente 10 dígitos" });
+    if (!finalContact.cedula) missing.push({ key: "cedula", label: "Cédula" });
+    if (!finalContact.ciudad) missing.push({ key: "ciudad", label: "Ciudad" });
+    if (crmAnterior === "SI" && !colorCrm) missing.push({ key: "colorCrm", label: "Color CRM" });
+    if (crmAnterior === "SI" && !contactoAsesor) missing.push({ key: "contactoAsesor", label: "El contacto es de ese asesor" });
+    setMissingFields(missing.map((item) => item.key));
+    if (missing.length) throw new Error(`Faltan estos datos: ${missing.map((item) => item.label).join(", ")}.`);
     const productosEspeciales = ["Rejeunesse", "Pink Intimate System", "LusciousLips", "Hilos PDO", "Lapuroon"];
     const tieneFormulario = fuente.includes("Formulario");
     const finalProfesion = titleCase(normalizeProfessionChoice(profesion || profesionCapturada || "Por Definir"));
@@ -246,7 +251,8 @@ export default function Home() {
     const crmPrefix = crmAnterior === "SI"
       ? contactoAsesor === "SI" ? `Existe en CRM y *es tuyo*, ${colorCrm}\n\n` : `Existe en CRM, se te *REASIGNÓ*, ${colorCrm}\n\n`
       : "Contacto *NUEVO* *️⃣\n\n";
-    const text = `${crmPrefix}${encabezado}\n\n${titleCase(finalContact.nombre)}\nCiudad: ${titleCase(finalContact.ciudad)}\n${finalContact.correo ? `Correo: ${finalContact.correo}\n` : ""}Cédula Prof: ${finalContact.cedula}\nProfesión: ${finalProfesion}\nWhatsapp: ${finalContact.whatsapp}\n\nInterés en *${titleCase(producto)}*`;
+    const colorLine = crmAnterior === "SI" ? `Color: ${colorCrm}\n` : "";
+    const text = `${crmPrefix}${colorLine}${encabezado}\n\n${titleCase(finalContact.nombre)}\nCiudad: ${titleCase(finalContact.ciudad)}\n${finalContact.correo ? `Correo: ${finalContact.correo}\n` : ""}Cédula Prof: ${finalContact.cedula}\nProfesión: ${finalProfesion}\nWhatsapp: ${finalContact.whatsapp}\n\nInterés en *${titleCase(producto)}*`;
     const fh = nowParts();
     const row: ResultRow = { mes: fh.mes, fecha: fh.fecha, hora: fh.hora, fuente, nombre: titleCase(finalContact.nombre), whatsapp: finalContact.whatsapp, ciudad: titleCase(finalContact.ciudad), cedula: finalContact.cedula, profesion: finalProfesion, agente, quienAsigna, crmAnterior, colorCrm: crmAnterior === "SI" ? colorCrm : "N/A", contactoAsesor: crmAnterior === "SI" ? contactoAsesor : "N/A", interes: titleCase(producto) };
     return { text, row, finalContact };
@@ -256,6 +262,7 @@ export default function Home() {
     setError("");
     try {
       const { text } = buildOrganizedData();
+      setMissingFields([]);
       setResultado(text);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo organizar la información.");
@@ -268,6 +275,7 @@ export default function Home() {
     let built: ReturnType<typeof buildOrganizedData> | null = null;
     try {
       built = buildOrganizedData();
+      setMissingFields([]);
       const { text, row, finalContact } = built;
       setResultado(text);
       const body = { quienAsigna, fuente, producto, agente, nombre: finalContact.nombre, whatsapp: finalContact.whatsapp, ciudad: finalContact.ciudad, cedula: finalContact.cedula, interes: producto, eraDeEseAsesor: contactoAsesor || "N/A" };
@@ -297,15 +305,15 @@ export default function Home() {
     <section className="lead-card">
       <div className="section-title"><span>01</span><div><h2>Entrada de datos</h2><p>Pega los datos en cualquier orden. La primera línea siempre es el nombre.</p></div></div>
       <div className="grid three">
-        <Field label="Quién asignará" required><select value={quienAsigna} onChange={(e) => setQuienAsigna(e.target.value)}><option value="">-</option>{asignadores.map((item) => <option key={item}>{item}</option>)}</select></Field>
-        <Field label="Fuente" required><select value={fuente} onChange={(e) => setFuente(e.target.value)}><option value="">-</option>{fuentes.map((item) => <option key={item}>{item}</option>)}</select></Field>
-        <Field label="Producto / Interés" required><select value={producto} onChange={(e) => setProducto(e.target.value)}><option value="">-</option>{productos.map((item) => <option key={item}>{item}</option>)}</select></Field>
-        <Field label="Datos del contacto" required><textarea value={datos} onChange={(e) => { setDatos(e.target.value); setContact(emptyContact); }} rows={7} placeholder={"Juan Pérez López\n12345678\n5512345678\nMonterrey, Nuevo León\ncorreo@ejemplo.com"} /></Field>
+        <Field label="Quién asignará" required missing={missingFields.includes("quienAsigna")}><select value={quienAsigna} onChange={(e) => setQuienAsigna(e.target.value)}><option value="">-</option>{asignadores.map((item) => <option key={item}>{item}</option>)}</select></Field>
+        <Field label="Fuente" required missing={missingFields.includes("fuente")}><select value={fuente} onChange={(e) => setFuente(e.target.value)}><option value="">-</option>{fuentes.map((item) => <option key={item}>{item}</option>)}</select></Field>
+        <Field label="Producto / Interés" required missing={missingFields.includes("producto")}><select value={producto} onChange={(e) => setProducto(e.target.value)}><option value="">-</option>{productos.map((item) => <option key={item}>{item}</option>)}</select></Field>
+        <Field label="Datos del contacto" required missing={["nombre", "whatsapp", "cedula", "ciudad"].some((key) => missingFields.includes(key))}><textarea value={datos} onChange={(e) => { setDatos(e.target.value); setContact(emptyContact); }} rows={7} placeholder={"Juan Pérez López\n12345678\n5512345678\nMonterrey, Nuevo León\ncorreo@ejemplo.com"} /></Field>
         <div className="detected featured readonly"><h3>Detectado</h3>{activeContact.nombre && <DetectedValue label="Nombre" value={activeContact.nombre} />}{activeContact.cedula && <DetectedValue label="Cédula" value={activeContact.cedula} />}{activeContact.whatsapp && <DetectedValue label="WhatsApp" value={activeContact.whatsapp} />}{activeContact.ciudad && <DetectedValue label="Ciudad" value={activeContact.ciudad} />}{activeContact.correo && <DetectedValue label="Correo" value={activeContact.correo} />}{activeProfession && <DetectedValue label="Profesión" value={activeProfession} highlighted={professionSource === "oficial"} />}{!activeContact.nombre && !activeContact.cedula && !activeContact.whatsapp && !activeContact.ciudad && !activeContact.correo && !activeProfession && <p className="detected-empty">Pega datos del contacto para detectar información.</p>}</div>
-        <div className="stacked-actions"><button className="primary" type="button" disabled={!!busy} onClick={buscarProfesion}>{busy === "profesion" ? "Buscando..." : "Buscar Profesión"}</button><button className="primary" type="button" disabled={!!busy} onClick={buscarCrm}>{busy === "crm" ? "Buscando..." : "Buscar CRM"}</button><div className="crm-fields"><Field label="Agente" required><select value={agente} onChange={(e) => setAgente(e.target.value)}><option value="">-</option>{agentes.map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="CRM Anterior" required><select value={crmAnterior} onChange={(e) => setCrmAnterior(e.target.value)}><option value="">-</option><option>SI</option><option>NO</option></select></Field>{crmAnterior === "SI" && <><Field label="Color CRM" required><select value={colorCrm} onChange={(e) => setColorCrm(e.target.value)}><option value="">-</option>{coloresCrm.map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="El contacto es de ese asesor" required><select value={contactoAsesor} onChange={(e) => setContactoAsesor(e.target.value)}><option value="">-</option><option>SI</option><option>NO</option></select></Field></>}</div></div>
+        <div className="stacked-actions"><button className="primary" type="button" disabled={!!busy} onClick={buscarProfesion}>{busy === "profesion" ? "Buscando..." : "Buscar Profesión"}</button><button className="primary" type="button" disabled={!!busy} onClick={buscarCrm}>{busy === "crm" ? "Buscando..." : "Buscar CRM"}</button><div className="crm-fields"><Field label="Agente" required missing={missingFields.includes("agente")}><select value={agente} onChange={(e) => setAgente(e.target.value)}><option value="">-</option>{agentes.map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="CRM Anterior" required missing={missingFields.includes("crmAnterior")}><select value={crmAnterior} onChange={(e) => setCrmAnterior(e.target.value)}><option value="">-</option><option>SI</option><option>NO</option></select></Field>{crmAnterior === "SI" && <><Field label="Color CRM" required missing={missingFields.includes("colorCrm")}><select value={colorCrm} onChange={(e) => setColorCrm(e.target.value)}><option value="">-</option>{coloresCrm.map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="El contacto es de ese asesor" required missing={missingFields.includes("contactoAsesor")}><select value={contactoAsesor} onChange={(e) => setContactoAsesor(e.target.value)}><option value="">-</option><option>SI</option><option>NO</option></select></Field></>}</div></div>
       </div>
       {error && <div className={error.startsWith("Guardado") || error.startsWith("Enviado") ? "alert success" : "alert error"}>{error}</div>}
-      <div className="actions"><button className="secondary" type="button" onClick={generarResultado}>Organizar Datos</button><button className="primary" type="button" disabled={!!busy} onClick={enviarTablaYCopiar}>{busy === "save" ? "Enviando..." : "Enviar a Tabla y Copiar"}</button></div>
+      <div className="actions"><button className="secondary" type="button" onClick={generarResultado}>Organizar Datos</button></div>
     </section>
     {resultado && <section className="lead-card result-output"><div className="section-title"><span>03</span><div><h2>Resultado</h2><p>Formato compatible con datos.danemed.com</p></div></div><pre>{resultado}</pre><button className="primary" type="button" disabled={!!busy} onClick={enviarTablaYCopiar}>{busy === "save" ? "Enviando..." : "Enviar a Tabla y Copiar"}</button></section>}
 
@@ -321,12 +329,12 @@ export default function Home() {
       </div>
     </section>
 
-    {showProfessionModal && <div className="modal-backdrop"><section className={cedula?.result ? "modal wide" : "modal simple-modal"}>{!cedula?.result ? <><button className="close" type="button" onClick={() => setShowProfessionModal(false)} aria-label="Cerrar">×</button><p className="eyebrow">Consulta de profesión</p><div className="empty-state"><span className="empty-icon">×</span><h2>No se encontró información con esa cédula.</h2><p>Revisa el número capturado e intenta nuevamente.</p></div></> : <><p className="eyebrow">Comparativo de profesión</p><h2>Elige qué columna se usará</h2><div className="compare column-decisions"><div className={reviewSource === "capturado" ? "selected-column" : ""}><h3>Capturado</h3><ReviewLine label="Nombre" value={activeContact.nombre} /><ReviewLine label="Profesión" value={activeProfession || "Sin profesión capturada"} /><button className="column-choice" type="button" onClick={usarCapturado}>Usar datos capturados</button></div><div className={reviewSource === "oficial" ? "selected-column" : ""}><h3>Consulta oficial</h3><ReviewLine label="Nombre" value={cedula.result.nombre || "Sin resultado"} /><ReviewLine label="Profesión" value={cedula.result.carrera ? normalizeProfessionChoice(cedula.result.carrera) : "Sin resultado"} /><button className="column-choice" type="button" onClick={usarOficial}>Usar datos oficiales</button></div></div><p className="modal-hint">Selecciona una columna completa para definir nombre y profesión.</p><div className="modal-actions"><button className="primary" disabled={!reviewSource} onClick={() => setShowProfessionModal(false)}>Continuar</button></div></>}</section></div>}
+    {showProfessionModal && <div className="modal-backdrop"><section className={cedula?.result ? "modal wide" : "modal simple-modal"}><button className="close" type="button" onClick={() => setShowProfessionModal(false)} aria-label="Cerrar">×</button>{!cedula?.result ? <><p className="eyebrow">Consulta de profesión</p><div className="empty-state"><span className="empty-icon">×</span><h2>No se encontró información con esa cédula.</h2><p>{cedula?.source && cedula.source !== "cedulas-profesionales" ? cedula.source : "Revisa el número capturado o intenta más tarde; el servidor puede no estar respondiendo."}</p></div></> : <><p className="eyebrow">Comparativo de profesión</p><h2>Elige qué columna se usará</h2><div className="compare column-decisions"><div className={reviewSource === "capturado" ? "selected-column" : ""}><h3>Capturado</h3><ReviewLine label="Nombre" value={activeContact.nombre} /><ReviewLine label="Profesión" value={activeProfession || "Sin profesión capturada"} /><button className="column-choice" type="button" onClick={usarCapturado}>Usar datos capturados</button></div><div className={reviewSource === "oficial" ? "selected-column" : ""}><h3>Consulta oficial</h3><ReviewLine label="Nombre" value={cedula.result.nombre || "Sin resultado"} /><ReviewLine label="Profesión" value={cedula.result.carrera ? normalizeProfessionChoice(cedula.result.carrera) : "Sin resultado"} /><button className="column-choice" type="button" onClick={usarOficial}>Usar datos oficiales</button></div></div><p className="modal-hint">Selecciona una columna completa para definir nombre y profesión.</p><div className="modal-actions"><button className="primary" disabled={!reviewSource} onClick={() => setShowProfessionModal(false)}>Continuar</button></div></>}</section></div>}
 
-    {showCrmModal && <div className="modal-backdrop"><section className={crm?.cliente === "viejo" ? "modal" : "modal simple-modal"}>{crm?.cliente === "viejo" ? <><p className="eyebrow">Resultado CRM</p><h2>Contacto existente</h2><ReviewLine label="Agente asignado" value={crmAgent || "El CRM no devolvió agente"} /><ReviewLine label="Color CRM" value={crmColor || "El CRM no devolvió color"} /><p className="subtitle small">¿Desea mantener la asignación actual o reasignar este contacto?</p><div className="modal-actions"><button className="secondary" onClick={reasignar}>Reasignar</button><button className="primary" onClick={mantenerAsignacion}>Mantener asignación</button></div></> : <><button className="close" type="button" onClick={() => setShowCrmModal(false)} aria-label="Cerrar">×</button><p className="eyebrow">Resultado CRM</p><div className="empty-state"><span className="empty-icon">×</span><h2>El contacto no existe en CRM.</h2><p>Se marcó automáticamente CRM Anterior como NO.</p></div></>}</section></div>}
+    {showCrmModal && <div className="modal-backdrop"><section className={crm?.cliente === "viejo" ? "modal" : "modal simple-modal"}><button className="close" type="button" onClick={() => setShowCrmModal(false)} aria-label="Cerrar">×</button>{crm?.cliente === "viejo" ? <><p className="eyebrow">Resultado CRM</p><h2>Contacto existente</h2><ReviewLine label="Agente asignado" value={crmAgent || "El CRM no devolvió agente"} /><ReviewLine label="Color CRM" value={crmColor || "El CRM no devolvió color"} /><p className="subtitle small">¿Desea mantener la asignación actual o reasignar este contacto?</p><div className="modal-actions"><button className="secondary" onClick={reasignar}>Reasignar</button><button className="primary" onClick={mantenerAsignacion}>Mantener asignación</button></div></> : <><p className="eyebrow">Resultado CRM</p><div className="empty-state"><span className="empty-icon">×</span><h2>El contacto no existe en CRM.</h2><p>Se marcó automáticamente CRM Anterior como NO.</p></div></>}</section></div>}
   </main>;
 }
 
 function DetectedValue({ label, value, highlighted }: { label: string; value: string; highlighted?: boolean }) { return <div className={`detected-row ${highlighted ? "changed" : ""}`}><span>{label}</span><strong>{value}</strong></div>; }
-function Field({ label, error, required, children }: { label: string; error?: string; required?: boolean; children: React.ReactNode }) { return <label className="field"><span>{label} {required && <b>*</b>}</span>{children}{error && <small className="field-error">{error}</small>}</label>; }
+function Field({ label, error, required, missing, children }: { label: string; error?: string; required?: boolean; missing?: boolean; children: React.ReactNode }) { return <label className={`field ${missing ? "missing" : ""}`}><span>{label} {required && <b>*</b>}</span>{children}{error && <small className="field-error">{error}</small>}</label>; }
 function ReviewLine({ label, value }: { label: string; value: string }) { return <div className="review"><span>{label}</span><strong>{value || "-"}</strong></div>; }

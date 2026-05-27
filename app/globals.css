@@ -69,6 +69,8 @@ input, select, textarea {
 }
 textarea { resize: vertical; min-height: 112px; }
 input:focus, select:focus, textarea:focus { border-color: var(--brand-2); box-shadow: 0 0 0 4px rgba(106,13,173,.14); background: #fff; }
+.field.missing > span { color: var(--danger); }
+.field.missing input, .field.missing select, .field.missing textarea { border-color: var(--danger); background: #fff7f5; box-shadow: 0 0 0 4px rgba(180,35,24,.12); }
 .field-error { color: var(--danger); font-weight: 700; }
 .alert { margin: 12px 0; padding: 14px 16px; border-radius: 18px; font-weight: 700; }
 .alert.error { color: var(--danger); background: #fff0ed; border: 1px solid #ffd6cf; }
