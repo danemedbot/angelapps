@@ -68,9 +68,9 @@ function normalizeProfessionChoice(value: string) { return detectedProfession(va
 function nowParts() {
   const d = new Date();
   return {
-    mes: new Intl.DateTimeFormat("es-MX", { month: "long", timeZone: "America/Mexico_City" }).format(d).toUpperCase(),
-    fecha: new Intl.DateTimeFormat("es-MX", { dateStyle: "short", timeZone: "America/Mexico_City" }).format(d),
-    hora: new Intl.DateTimeFormat("es-MX", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "America/Mexico_City" }).format(d).toLowerCase(),
+    mes: new Intl.DateTimeFormat("es-MX", { month: "long", timeZone: "America/Cancun" }).format(d).toUpperCase(),
+    fecha: new Intl.DateTimeFormat("es-MX", { dateStyle: "short", timeZone: "America/Cancun" }).format(d),
+    hora: new Intl.DateTimeFormat("es-MX", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "America/Cancun" }).format(d).toLowerCase(),
   };
 }
 

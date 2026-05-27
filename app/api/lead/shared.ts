@@ -332,8 +332,8 @@ export async function appendLeadToSheet(lead: LeadPayload, crm: Awaited<ReturnTy
   if (!headers.length) throw new Error("La hoja no tiene encabezados; no se agregó información para evitar modificar estructura.");
 
   const now = new Date();
-  const fecha = new Intl.DateTimeFormat("es-MX", { dateStyle: "short", timeZone: "America/Mexico_City" }).format(now);
-  const hora = new Intl.DateTimeFormat("es-MX", { timeStyle: "short", timeZone: "America/Mexico_City" }).format(now);
+  const fecha = new Intl.DateTimeFormat("es-MX", { dateStyle: "short", timeZone: "America/Cancun" }).format(now);
+  const hora = new Intl.DateTimeFormat("es-MX", { timeStyle: "short", timeZone: "America/Cancun" }).format(now);
   const profession = lead.profesion || cedulaCheck.result?.carrera || "";
   const crmAnterior = lead.crmAnterior || (crm.cliente === "viejo" ? "SI" : crm.cliente === "nuevo" ? "NO" : "Desconocido");
   const colorCrm = lead.colorCrm || cleanText(crm.raw?.color) || (crm.cliente === "viejo" ? "Café - Esperando respuesta" : "N/A");
@@ -354,7 +354,7 @@ export async function appendLeadToSheet(lead: LeadPayload, crm: Awaited<ReturnTy
     .toUpperCase();
 
   const base: Record<string, string> = {
-    "MES": new Intl.DateTimeFormat("es-MX", { month: "long", timeZone: "America/Mexico_City" }).format(now),
+    "MES": new Intl.DateTimeFormat("es-MX", { month: "long", timeZone: "America/Cancun" }).format(now),
     "FECHA": fecha,
     "HORA": hora,
     "FUENTE": lead.fuente,
