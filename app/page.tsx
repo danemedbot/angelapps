@@ -278,7 +278,7 @@ export default function Home() {
       setMissingFields([]);
       const { text, row, finalContact } = built;
       setResultado(text);
-      const body = { quienAsigna, fuente, producto, agente, nombre: finalContact.nombre, whatsapp: finalContact.whatsapp, ciudad: finalContact.ciudad, cedula: finalContact.cedula, interes: producto, eraDeEseAsesor: contactoAsesor || "N/A" };
+      const body = { quienAsigna, fuente, producto, agente: row.agente, nombre: row.nombre, whatsapp: row.whatsapp, ciudad: row.ciudad, cedula: row.cedula, profesion: row.profesion, crmAnterior: row.crmAnterior, colorCrm: row.colorCrm, interes: row.interes, eraDeEseAsesor: row.contactoAsesor };
       const response = await fetch("/api/lead/submit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const data = await response.json();
       if (!response.ok || data?.ok === false) throw new Error(data?.errors?.join(" ") || "No se pudo guardar en Google Sheets.");

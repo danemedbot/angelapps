@@ -21,6 +21,9 @@ export type LeadPayload = {
   whatsapp: string;
   ciudad: string;
   cedula: string;
+  profesion?: string;
+  crmAnterior?: string;
+  colorCrm?: string;
   interes: string;
   eraDeEseAsesor?: string;
 };
@@ -121,6 +124,9 @@ export function normalizeLead(input: Partial<LeadPayload>): LeadPayload {
     whatsapp: digits(input.whatsapp),
     ciudad: cleanText(input.ciudad),
     cedula: digits(input.cedula),
+    profesion: cleanText(input.profesion),
+    crmAnterior: cleanText(input.crmAnterior),
+    colorCrm: cleanText(input.colorCrm),
     interes: cleanText(input.interes),
     eraDeEseAsesor: cleanText(input.eraDeEseAsesor),
   };
@@ -328,8 +334,9 @@ export async function appendLeadToSheet(lead: LeadPayload, crm: Awaited<ReturnTy
   const now = new Date();
   const fecha = new Intl.DateTimeFormat("es-MX", { dateStyle: "short", timeZone: "America/Mexico_City" }).format(now);
   const hora = new Intl.DateTimeFormat("es-MX", { timeStyle: "short", timeZone: "America/Mexico_City" }).format(now);
-  const profession = cedulaCheck.result?.carrera || "";
-  const crmAnterior = crm.cliente === "viejo" ? "Sí" : crm.cliente === "nuevo" ? "No" : "Desconocido";
+  const profession = lead.profesion || cedulaCheck.result?.carrera || "";
+  const crmAnterior = lead.crmAnterior || (crm.cliente === "viejo" ? "SI" : crm.cliente === "nuevo" ? "NO" : "Desconocido");
+  const colorCrm = lead.colorCrm || cleanText(crm.raw?.color) || (crm.cliente === "viejo" ? "Café - Esperando respuesta" : "N/A");
   const observaciones = [
     lead.producto ? `Producto: ${lead.producto}` : "",
     lead.eraDeEseAsesor ? `Era de ese asesor: ${lead.eraDeEseAsesor}` : "",
@@ -362,9 +369,9 @@ export async function appendLeadToSheet(lead: LeadPayload, crm: Awaited<ReturnTy
     "QUIEN ASIGNARA": lead.quienAsigna,
     "QUIEN LO ASIGNO": lead.quienAsigna,
     "CRM ANTERIOR": crmAnterior,
-    "COLOR CRM": crm.cliente,
-    "COLOR EN CRM": crm.cliente,
-    "ERA DE ESE ASESOR?": lead.eraDeEseAsesor || "",
+    "COLOR CRM": crmAnterior === "SI" ? colorCrm : "N/A",
+    "COLOR EN CRM": crmAnterior === "SI" ? colorCrm : "N/A",
+    "ERA DE ESE ASESOR?": crmAnterior === "SI" ? lead.eraDeEseAsesor || "" : "N/A",
     "INTERES": lead.interes,
     "PRODUCTO": lead.producto,
     "UNIVERSIDAD": cedulaCheck.result?.universidad || "",
