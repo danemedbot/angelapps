@@ -126,6 +126,8 @@ export default function Home() {
   const [crm, setCrm] = useState<CrmInfo | null>(null);
   const [cedula, setCedula] = useState<CedulaInfo | null>(null);
   const [reviewSource, setReviewSource] = useState<"capturado" | "oficial" | "">("");
+  const [pendingProfession, setPendingProfession] = useState("");
+  const [pendingProfessionSource, setPendingProfessionSource] = useState<"capturado" | "oficial" | "">("");
   const [professionSource, setProfessionSource] = useState<"capturado" | "oficial" | "">("");
   const [showProfessionModal, setShowProfessionModal] = useState(false);
   const [showCrmModal, setShowCrmModal] = useState(false);
@@ -160,10 +162,14 @@ export default function Home() {
       if (!response.ok || data?.ok === false) throw new Error(data?.errors?.join(" ") || "No se pudo consultar la profesión.");
       setCedula(data.cedula);
       setReviewSource("");
+      setPendingProfession("");
+      setPendingProfessionSource("");
       setShowProfessionModal(true);
     } catch (e) {
       setCedula({ result: null, source: e instanceof Error ? e.message : "No se pudo consultar la profesión." });
       setReviewSource("");
+      setPendingProfession("");
+      setPendingProfessionSource("");
       setShowProfessionModal(true);
     }
     finally { setBusy(""); }
@@ -196,16 +202,23 @@ export default function Home() {
 
   function usarCapturado() {
     const capturedProfession = normalizeProfessionChoice(capturedProfessionOnly);
-    if (capturedProfession) setProfesion(capturedProfession);
+    setPendingProfession(capturedProfession);
+    setPendingProfessionSource("capturado");
     setReviewSource("capturado");
-    setProfessionSource("capturado");
   }
 
   function usarOficial() {
     const result = cedula?.result;
-    if (result?.carrera) setProfesion(normalizeProfessionChoice(result.carrera));
+    setPendingProfession(result?.carrera ? normalizeProfessionChoice(result.carrera) : "");
+    setPendingProfessionSource("oficial");
     setReviewSource("oficial");
-    setProfessionSource("oficial");
+  }
+
+  function continuarProfesion() {
+    if (pendingProfession) setProfesion(pendingProfession);
+    else setProfesion("");
+    setProfessionSource(pendingProfessionSource);
+    setShowProfessionModal(false);
   }
 
   function mantenerAsignacion() {
@@ -290,6 +303,8 @@ export default function Home() {
       setDatos("");
       setContact(emptyContact);
       setProfesion("");
+      setPendingProfession("");
+      setPendingProfessionSource("");
       setProfessionSource("");
       setAgente("");
       setCrmAnterior("");
@@ -339,7 +354,7 @@ export default function Home() {
       </div>
     </section>
 
-    {showProfessionModal && <div className="modal-backdrop"><section className={cedula?.result ? "modal wide" : "modal simple-modal"}><button className="close" type="button" onClick={() => setShowProfessionModal(false)} aria-label="Cerrar">×</button>{!cedula?.result ? <><p className="eyebrow">Consulta de profesión</p><div className="empty-state"><span className="empty-icon">×</span><h2>No se encontró información con esa cédula.</h2><p>{cedula?.source && cedula.source !== "cedulas-profesionales" ? cedula.source : "Revisa el número capturado o intenta más tarde; el servidor puede no estar respondiendo."}</p></div></> : <><p className="eyebrow">Comparativo de profesión</p><h2>Elige qué columna se usará</h2><div className="compare column-decisions"><div className={reviewSource === "capturado" ? "selected-column" : ""}><h3>Capturado</h3><ReviewLine label="Nombre" value={activeContact.nombre} /><ReviewLine label="Profesión" value={capturedProfessionOnly || "Sin profesión capturada"} /><button className="column-choice" type="button" onClick={usarCapturado}>Usar datos capturados</button></div><div className={reviewSource === "oficial" ? "selected-column" : ""}><h3>Consulta oficial</h3><ReviewLine label="Nombre" value={cedula.result.nombre || "Sin resultado"} /><ReviewLine label="Profesión" value={cedula.result.carrera ? normalizeProfessionChoice(cedula.result.carrera) : "Sin resultado"} /><button className="column-choice" type="button" onClick={usarOficial}>Usar datos oficiales</button></div></div><p className="modal-hint">Selecciona una columna completa para definir nombre y profesión.</p><div className="modal-actions"><button className="primary" disabled={!reviewSource} onClick={() => setShowProfessionModal(false)}>Continuar</button></div></>}</section></div>}
+    {showProfessionModal && <div className="modal-backdrop"><section className={cedula?.result ? "modal wide" : "modal simple-modal"}><button className="close" type="button" onClick={() => setShowProfessionModal(false)} aria-label="Cerrar">×</button>{!cedula?.result ? <><p className="eyebrow">Consulta de profesión</p><div className="empty-state"><span className="empty-icon">×</span><h2>No se encontró información con esa cédula.</h2><p>{cedula?.source && cedula.source !== "cedulas-profesionales" ? cedula.source : "Revisa el número capturado o intenta más tarde; el servidor puede no estar respondiendo."}</p></div></> : <><p className="eyebrow">Comparativo de profesión</p><h2>Elige qué columna se usará</h2><div className="compare column-decisions"><div className={reviewSource === "capturado" ? "selected-column" : ""}><h3>Capturado</h3><ReviewLine label="Nombre" value={activeContact.nombre} /><ReviewLine label="Profesión" value={capturedProfessionOnly || "Sin profesión capturada"} /><button className="column-choice" type="button" onClick={usarCapturado}>Usar datos capturados</button></div><div className={reviewSource === "oficial" ? "selected-column" : ""}><h3>Consulta oficial</h3><ReviewLine label="Nombre" value={cedula.result.nombre || "Sin resultado"} /><ReviewLine label="Profesión" value={cedula.result.carrera ? normalizeProfessionChoice(cedula.result.carrera) : "Sin resultado"} /><button className="column-choice" type="button" onClick={usarOficial}>Usar datos oficiales</button></div></div><p className="modal-hint">Selecciona una columna completa para definir nombre y profesión.</p><div className="modal-actions"><button className="primary" disabled={!reviewSource} onClick={continuarProfesion}>Continuar</button></div></>}</section></div>}
 
     {showCrmModal && <div className="modal-backdrop"><section className={crm?.cliente === "viejo" ? "modal" : "modal simple-modal"}><button className="close" type="button" onClick={() => setShowCrmModal(false)} aria-label="Cerrar">×</button>{crm?.cliente === "viejo" ? <><p className="eyebrow">Resultado CRM</p><h2>Contacto existente</h2><ReviewLine label="Agente asignado" value={crmAgent || "El CRM no devolvió agente"} /><ReviewLine label="Color CRM" value={crmColor || "El CRM no devolvió color"} /><p className="subtitle small">¿Desea mantener la asignación actual o reasignar este contacto?</p><div className="modal-actions"><button className="secondary" onClick={reasignar}>Reasignar</button><button className="primary" onClick={mantenerAsignacion}>Mantener asignación</button></div></> : <><p className="eyebrow">Resultado CRM</p><div className="empty-state"><span className="empty-icon">×</span><h2>El contacto no existe en CRM.</h2><p>Se marcó automáticamente CRM Anterior como NO.</p></div></>}</section></div>}
   </main>;
