@@ -26,6 +26,7 @@ export type LeadPayload = {
 };
 
 export const CRM_ENDPOINT = process.env.CRM_CHECK_ENDPOINT || "https://app.daneapp.com/danemed/index.php/clientes/consultarcliente";
+export const CRM_API_TOKEN = process.env.CRM_API_TOKEN || process.env.CRM_CHECK_TOKEN || "";
 export const CEDULAS_ENDPOINT = process.env.CEDULAS_API_ENDPOINT || "https://cedulas-profesionales.vercel.app/api/cedulas";
 export const SHEET_ID = process.env.GOOGLE_SHEET_ID || "1VQd6et38O5P81NGphmlAVZHy6aaqdPQvZnGCz33jRvg";
 
@@ -142,6 +143,7 @@ function parseCrmWebResult(html: string, mode: "telefono" | "cedula", query: str
 }
 
 async function queryCrmWeb(modeValue: "1" | "4", query: string) {
+  const tokenHeaders: Record<string, string> = CRM_API_TOKEN ? { authorization: `Bearer ${CRM_API_TOKEN}`, "x-api-key": CRM_API_TOKEN } : {};
   const cookieResponse = await fetch(CRM_ENDPOINT, { cache: "no-store" });
   const cookie = cookieResponse.headers.get("set-cookie")?.split(";")[0] || "";
   const response = await fetch(CRM_ENDPOINT, {
@@ -150,6 +152,7 @@ async function queryCrmWeb(modeValue: "1" | "4", query: string) {
       "content-type": "application/x-www-form-urlencoded",
       accept: "text/html,application/xhtml+xml",
       referer: CRM_ENDPOINT,
+      ...tokenHeaders,
       ...(cookie ? { cookie } : {}),
     },
     body: new URLSearchParams({ optionsRadios: modeValue, "Consultaview[nombres]": query, yt0: "Buscar" }),
