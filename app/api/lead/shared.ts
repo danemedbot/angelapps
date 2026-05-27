@@ -40,11 +40,54 @@ export function cleanText(value: unknown) {
 
 function rawString(raw: Record<string, unknown> | undefined, keys: string[]) {
   if (!raw) return "";
-  for (const key of keys) {
-    const found = Object.entries(raw).find(([k]) => cleanText(k).toLowerCase() === cleanText(key).toLowerCase());
-    if (found && found[1] != null && cleanText(found[1])) return cleanText(found[1]);
+  const normalizedKeys = keys.map((key) => cleanText(key).toLowerCase());
+  const visited = new Set<unknown>();
+  const find = (value: unknown): string => {
+    if (!value || typeof value !== "object" || visited.has(value)) return "";
+    visited.add(value);
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      if (normalizedKeys.includes(cleanText(key).toLowerCase()) && entry != null && cleanText(entry)) return cleanText(entry);
+    }
+    for (const entry of Object.values(value as Record<string, unknown>)) {
+      const nested = find(entry);
+      if (nested) return nested;
+    }
+    return "";
+  };
+  return find(raw);
+}
+
+function rawNumber(raw: Record<string, unknown>, keys: string[]) {
+  const value = rawString(raw, keys);
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function crmStatusFromApi(data: Record<string, unknown>): { cliente: CrmStatus; valor: number } {
+  const clienteText = rawString(data, ["cliente", "estatus", "status", "tipo", "crmAnterior", "crm_anterior"]).toLowerCase();
+  const valor = rawNumber(data, ["valor", "exists", "existe", "encontrado", "found"]);
+  if (["viejo", "existente", "existe", "si", "sí", "true", "encontrado"].includes(clienteText)) return { cliente: "viejo", valor: valor ?? 0 };
+  if (["nuevo", "no", "false", "no encontrado"].includes(clienteText)) return { cliente: "nuevo", valor: valor ?? 1 };
+  if (valor === 0) return { cliente: "viejo", valor };
+  if (valor === 1) return { cliente: "nuevo", valor };
+  if (valor && valor > 1) return { cliente: "viejo", valor };
+  return { cliente: "desconocido", valor: valor ?? -1 };
+}
+
+function flattenCrmRaw(data: Record<string, unknown>) {
+  const raw: Record<string, unknown> = { ...data, source: "check-client-api" };
+  const mappings: Record<string, string[]> = {
+    agente: ["agente", "asesor", "agent", "assigned_agent", "usuario", "nombre_agente", "agente_asignado", "asesor_asignado", "vendedor", "usuario_asignado"],
+    color: ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead"],
+    nombre: ["nombre", "name", "cliente_nombre", "nombre_cliente"],
+    whatsapp: ["whatsapp", "telefono", "teléfono", "celular", "phone"],
+    cedula: ["cedula", "cédula", "cedula_profesional", "cedulaProf"],
+  };
+  for (const [target, keys] of Object.entries(mappings)) {
+    const value = rawString(data, keys);
+    if (value) raw[target] = value;
   }
-  return "";
+  return raw;
 }
 
 export function normalizeLead(input: Partial<LeadPayload>): LeadPayload {
@@ -188,14 +231,8 @@ async function queryCrmApi(whatsapp: string, cedula: string) {
 
 export async function checkCrm(whatsapp: string, cedula: string) {
   const data = await queryCrmApi(whatsapp, cedula);
-  const clienteValue = cleanText(data.cliente).toLowerCase();
-  const valor = Number(data.valor ?? (clienteValue === "nuevo" ? 1 : 0));
-  const cliente: CrmStatus = clienteValue === "viejo" || clienteValue === "nuevo" ? clienteValue : valor === 1 ? "nuevo" : "viejo";
-  const raw: Record<string, unknown> = { ...data, source: "check-client-api" };
-  const agente = rawString(raw, ["agente", "asesor", "agent", "assigned_agent", "usuario", "nombre_agente"]);
-  const color = rawString(raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color"]);
-  if (agente) raw.agente = agente;
-  if (color) raw.color = color;
+  const { cliente, valor } = crmStatusFromApi(data);
+  const raw = flattenCrmRaw(data);
   return { ok: true, valor, cliente, raw };
 }
 
