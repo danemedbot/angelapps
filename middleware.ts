@@ -13,7 +13,7 @@ export function middleware(request: NextRequest) {
     if (pathname.startsWith("/api/")) return NextResponse.json({ ok: false, errors: ["No autenticado."] }, { status: 401 });
     const url = request.nextUrl.clone();
     url.pathname = "/datos/login";
-    url.searchParams.set("next", pathname.startsWith("/datos") ? pathname : "/datos");
+    url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
