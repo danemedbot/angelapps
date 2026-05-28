@@ -225,3 +225,4 @@ tbody tr.ultima-fila { background: rgba(106, 13, 173, 0.08); }
 .login-card { width: min(440px, 100%); background: var(--card); border: 1px solid var(--border); border-radius: 28px; padding: 28px; box-shadow: var(--shadow); display: grid; gap: 16px; }
 .login-card h1 { margin: 0; color: var(--brand); }
 .login-card p { margin: 0; color: var(--muted); }
+.root-placeholder { min-height: 100vh; background: #fff; }

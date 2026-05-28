@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const SESSION_COOKIE = "danemed_session";
-const publicPaths = ["/login", "/api/auth/login"];
+const publicPaths = ["/", "/datos/login", "/api/auth/login"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -12,8 +12,8 @@ export function middleware(request: NextRequest) {
   if (!request.cookies.get(SESSION_COOKIE)?.value) {
     if (pathname.startsWith("/api/")) return NextResponse.json({ ok: false, errors: ["No autenticado."] }, { status: 401 });
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("next", pathname);
+    url.pathname = "/datos/login";
+    url.searchParams.set("next", pathname.startsWith("/datos") ? pathname : "/datos");
     return NextResponse.redirect(url);
   }
 

@@ -16,7 +16,7 @@ export default function LoginPage() {
       const response = await fetch("/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ username, password }) });
       const data = await response.json();
       if (!response.ok || data?.ok === false) throw new Error(data?.errors?.join(" ") || "No se pudo iniciar sesión.");
-      window.location.href = new URLSearchParams(window.location.search).get("next") || "/";
+      window.location.href = new URLSearchParams(window.location.search).get("next") || "/datos";
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo iniciar sesión.");
     } finally {
