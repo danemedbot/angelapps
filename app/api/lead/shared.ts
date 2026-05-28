@@ -321,6 +321,41 @@ async function sheetsFetch(path: string, init: RequestInit = {}) {
   return data;
 }
 
+export async function readLeadsSheet() {
+  const sheetName = "Ene-Dic 2026";
+  const data = await sheetsFetch(`/values/${encodeURIComponent(`${sheetName}!A1:ZZ5000`)}?majorDimension=ROWS`);
+  const values: string[][] = data?.values || [];
+  const headers = values[0] || [];
+  const normalizeHeader = (header: string) => header
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+  const rows = values.slice(1).filter((row) => row.some((cell) => cleanText(cell))).map((row) => {
+    const raw: Record<string, string> = {};
+    headers.forEach((header, index) => { raw[normalizeHeader(String(header))] = cleanText(row[index]); });
+    return {
+      mes: raw["MES"] || "",
+      fecha: raw["FECHA"] || "",
+      hora: raw["HORA"] || "",
+      fuente: raw["FUENTE"] || "",
+      nombre: raw["NOMBRE DEL CLIENTE"] || raw["NOMBRE"] || "",
+      whatsapp: raw["WHATSAPP"] || "",
+      ciudad: raw["CIUDAD"] || "",
+      cedula: raw["CEDULA"] || raw["CEDULA PROFESIONAL"] || "",
+      profesion: raw["PROFESION"] || "",
+      agente: raw["AGENTE"] || "",
+      quienAsigna: raw["QUIEN ASIGNA"] || raw["QUIEN ASIGNARA"] || "",
+      crmAnterior: raw["CRM ANTERIOR"] || "",
+      colorCrm: raw["COLOR EN CRM"] || raw["COLOR CRM"] || "",
+      eraDeEseAsesor: raw["ERA DE ESE ASESOR?"] || "",
+      interes: raw["INTERES"] || raw["PRODUCTO"] || "",
+    };
+  });
+  return { sheetName, headers, rows };
+}
+
 export async function appendLeadToSheet(lead: LeadPayload, crm: Awaited<ReturnType<typeof checkCrm>>, cedulaCheck: Awaited<ReturnType<typeof checkCedula>>) {
   const meta = await sheetsFetch("?fields=sheets(properties(title))");
   const sheetName = process.env.GOOGLE_SHEET_TAB || meta?.sheets?.[0]?.properties?.title;

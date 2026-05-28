@@ -1,0 +1,30 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+type Lead = { mes: string; fecha: string; hora: string; fuente: string; nombre: string; whatsapp: string; ciudad: string; cedula: string; profesion: string; agente: string; quienAsigna: string; crmAnterior: string; colorCrm: string; eraDeEseAsesor: string; interes: string; };
+const norm = (v: string) => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const parseDate = (value: string) => { const [d, m, y] = value.split(/[\/\-]/).map(Number); if (!d || !m || !y) return null; return new Date(y < 100 ? 2000 + y : y, m - 1, d); };
+const countBy = (rows: Lead[], key: keyof Lead) => rows.reduce<Record<string, number>>((acc, row) => { const value = String(row[key] || "-").trim() || "-"; acc[value] = (acc[value] || 0) + 1; return acc; }, {});
+const sortedEntries = (obj: Record<string, number>) => Object.entries(obj).sort((a, b) => b[1] - a[1]);
+
+export default function LeadsPage() {
+  const [rows, setRows] = useState<Lead[]>([]);
+  const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
+  const [error, setError] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [interes, setInteres] = useState("Todos");
+  const [profesion, setProfesion] = useState("Todas");
+  const [crm, setCrm] = useState("Todos");
+  async function load() { setStatus("loading"); setError(""); try { const response = await fetch("/api/leads", { cache: "no-store" }); const data = await response.json(); if (!response.ok || data?.ok === false) throw new Error(data?.errors?.join(" ") || "Error de conexión"); setRows(data.rows || []); setStatus("ok"); } catch (e) { setError(e instanceof Error ? e.message : "Error de conexión"); setStatus("error"); } }
+  useEffect(() => { load(); }, []);
+  const options = useMemo(() => ({ intereses: Array.from(new Set(rows.map((r) => r.interes).filter(Boolean))).sort(), profesiones: Array.from(new Set(rows.map((r) => r.profesion).filter(Boolean))).sort() }), [rows]);
+  const filtered = useMemo(() => rows.filter((row) => { const date = parseDate(row.fecha); if (from && date && date < new Date(`${from}T00:00:00`)) return false; if (to && date && date > new Date(`${to}T23:59:59`)) return false; if (interes !== "Todos" && row.interes !== interes) return false; if (profesion !== "Todas" && row.profesion !== profesion) return false; if (crm !== "Todos" && norm(row.crmAnterior) !== norm(crm)) return false; return true; }), [rows, from, to, interes, profesion, crm]);
+  const total = rows.length; const crmSi = filtered.filter((r) => norm(r.crmAnterior) === "si").length; const crmNo = filtered.filter((r) => norm(r.crmAnterior) === "no").length;
+  const interestEntries = sortedEntries(countBy(filtered, "interes")); const professionEntries = sortedEntries(countBy(filtered, "profesion")); const colorEntries = sortedEntries(countBy(filtered, "colorCrm")); const sourceEntries = sortedEntries(countBy(filtered, "fuente"));
+  const max = Math.max(1, ...[...interestEntries, ...professionEntries, ...colorEntries, ...sourceEntries].map(([, count]) => count));
+  function clear() { setFrom(""); setTo(""); setInteres("Todos"); setProfesion("Todas"); setCrm("Todos"); }
+  const Chart = ({ title, badge, entries }: { title: string; badge: string; entries: [string, number][] }) => <section className="leads-panel"><div className="panel-head"><h2>{title}</h2><span>{badge}</span></div><div className="bars">{entries.map(([label, count]) => <div className="bar-row" key={label}><div className="bar-label"><strong>{label}</strong><em>{count}</em></div><div className="bar-track"><div style={{ width: `${(count / max) * 100}%` }} /></div></div>)}</div></section>;
+  return <main className="leads-dashboard"><header className="leads-header"><div className="brand-icon">▥</div><h1>Dashboard de Leads — Ene-Jun <strong>2026</strong></h1><div className="header-actions"><span className={status === "ok" ? "status-pill ok" : "status-pill error"}>{status === "ok" ? "Conectado" : "Error de conexión"}</span><button onClick={load}>⟳ Refrescar</button></div></header><section className="filters"><span>▽ Filtros</span><label>Fecha Desde<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label><label>Fecha Hasta<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label><label>Interés<select value={interes} onChange={(e) => setInteres(e.target.value)}><option>Todos</option>{options.intereses.map((v) => <option key={v}>{v}</option>)}</select></label><label>Profesión<select value={profesion} onChange={(e) => setProfesion(e.target.value)}><option>Todas</option>{options.profesiones.map((v) => <option key={v}>{v}</option>)}</select></label><label>CRM Anterior<select value={crm} onChange={(e) => setCrm(e.target.value)}><option>Todos</option><option>SI</option><option>NO</option></select></label><button className="clear" onClick={clear}>× Limpiar</button></section>{error && <div className="leads-error">{error}</div>}<section className="kpis"><article><div><span>Total Leads</span><i>♙</i></div><strong>{total}</strong><p>Registros totales del documento</p></article><article><div><span>Leads Filtrados</span><i>◎</i></div><strong>{filtered.length}</strong><p>Según filtros seleccionados</p></article><article><div><span>¿Existía antes en CRM?</span><i>▱</i></div><div className="crm-split"><b><small>SI</small>{crmSi}<em>{filtered.length ? Math.round((crmSi / filtered.length) * 100) : 0}%</em></b><b><small>NO</small>{crmNo}<em>{filtered.length ? Math.round((crmNo / filtered.length) * 100) : 0}%</em></b></div></article></section><section className="charts"><Chart title="Leads por Interés" badge={`${interestEntries.length} categorías`} entries={interestEntries} /><Chart title="Leads por Profesión" badge={`${professionEntries.length} categorías`} entries={professionEntries} /><Chart title="Color en CRM" badge="-" entries={colorEntries} /><Chart title="Leads por Fuente" badge={`${sourceEntries.length} fuentes`} entries={sourceEntries} /></section></main>;
+}
