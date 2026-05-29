@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     const whatsapp = digits(body?.whatsapp);
     const cedula = digits(body?.cedula);
     if (whatsapp.length !== 10) return NextResponse.json({ ok: false, errors: ["WhatsApp inválido; debe tener 10 dígitos."] }, { status: 422 });
-    if (cedula.length < 4 || cedula.length > 10) return NextResponse.json({ ok: false, errors: ["Cédula inválida."] }, { status: 422 });
+    if (cedula && (cedula.length < 4 || cedula.length > 10)) return NextResponse.json({ ok: false, errors: ["Cédula inválida."] }, { status: 422 });
     const limited = await rateLimit(`crm:${user}:${ip}`, 30, 60 * 1000);
     if (!limited.allowed) {
       audit({ action: "crm_lookup", user, ok: false, target: `${maskDigits(whatsapp)}/${maskDigits(cedula)}`, detail: { reason: "rate_limited" } });

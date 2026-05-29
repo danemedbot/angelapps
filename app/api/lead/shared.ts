@@ -242,12 +242,12 @@ async function queryCrmWeb(modeValue: "1" | "4", query: string) {
   return parseCrmWebResult(html, modeValue === "1" ? "telefono" : "cedula", query);
 }
 
-async function queryCrmApi(whatsapp: string, cedula: string) {
+async function queryCrmApi(payload: { whatsapp?: string; cedula?: string }) {
   if (!CRM_API_TOKEN) throw new Error("Falta configurar CRM_API_TOKEN en el servidor.");
   const response = await fetch(CRM_ENDPOINT, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json", authorization: `Bearer ${CRM_API_TOKEN}` },
-    body: JSON.stringify({ whatsapp, cedula }),
+    body: JSON.stringify({ whatsapp: payload.whatsapp || "", cedula: payload.cedula || "" }),
     cache: "no-store",
   });
   const data = await response.json().catch(() => null) as Record<string, unknown> | null;
@@ -256,11 +256,20 @@ async function queryCrmApi(whatsapp: string, cedula: string) {
   return data;
 }
 
-export async function checkCrm(whatsapp: string, cedula: string) {
-  const data = await queryCrmApi(whatsapp, cedula);
+function normalizeCrmResponse(data: Record<string, unknown>) {
   const { cliente, valor } = crmStatusFromApi(data);
   const raw = flattenCrmRaw(data);
   return { ok: true, valor, cliente, raw };
+}
+
+export async function checkCrm(whatsapp: string, cedula: string) {
+  const whatsappData = await queryCrmApi({ whatsapp });
+  const whatsappResult = normalizeCrmResponse(whatsappData);
+
+  if (whatsappResult.cliente === "viejo" || !cedula) return whatsappResult;
+
+  const cedulaData = await queryCrmApi({ cedula });
+  return normalizeCrmResponse(cedulaData);
 }
 
 export async function checkCedula(cedula: string) {

@@ -179,7 +179,6 @@ export default function Home() {
     setError("");
     const found = activeContact;
     if (found.whatsapp.length !== 10) { setError("El WhatsApp debe tener exactamente 10 dígitos."); return; }
-    if (!found.cedula) { setError("No detecté una cédula para consultar CRM."); return; }
     setBusy("crm");
     try {
       const response = await fetch("/api/lead/crm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ whatsapp: found.whatsapp, cedula: found.cedula }) });
