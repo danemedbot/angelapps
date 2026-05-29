@@ -18,9 +18,6 @@ const agentAliases: Record<string, string> = {
   "blanca perez": "bperez2",
   "blanca pérez": "bperez2",
 };
-const crmAgentOverridesByWhatsapp: Record<string, string> = {
-  "8187042648": "daisy",
-};
 const colorCrmNoDefinido = "No Definido";
 const coloresCrm = ["Verde - Me ha comprado", "Amarillo - Parece que me va a comprar", "Café - Esperando respuesta", "Naranja - Ha comprado en la empresa pero a mí aún no", "Rojo - Imposible de contactar", "Gris - Nunca responde mis mensajes", "Azul - Debo contactarlo", "Rosado - Cambiarle a otro asesor", "Blanco - Contacto recuperado", "Negro - No desea ser contactado por la empresa", "Vino - Necesita curso de aplicación", "Morado - No aplica por perfil", "Magenta - CLIENTE VETADO", "Índigo - Pendiente Cédula o Carta poder", "Verde Manzana - Cliente NO INYECTABLES", "Verde oscuro - Clientes VIP", "Verde Claro - Cliente Compras Esporádicas", "Vacío", colorCrmNoDefinido];
 const colorCrmDefaultExistente = "Café - Esperando respuesta";
@@ -160,7 +157,7 @@ export default function Home() {
   const capturedProfessionOnly = profesionCapturada;
   const activeProfession = profesion || profesionCapturada;
   const crmNoAdvisorAvailable = crm?.raw?.error === "NO_ADVISOR_AVAILABLE";
-  const crmAgent = crmAgentOverridesByWhatsapp[activeContact.whatsapp] || normalizeAgent(rawString(crm?.raw, ["agente", "asesor", "agent", "assigned_agent", "usuario", "nombre_agente", "agente_asignado", "asesor_asignado", "asesor_nombre", "datos_asesor", "vendedor", "usuario_asignado"]));
+  const crmAgent = normalizeAgent(rawString(crm?.raw, ["agente", "asesor", "agent", "assigned_agent", "usuario", "nombre_agente", "agente_asignado", "asesor_asignado", "asesor_nombre", "datos_asesor", "vendedor", "usuario_asignado"]));
   const crmColor = normalizeCrmColor(rawString(crm?.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead"])) || (crmNoAdvisorAvailable ? colorCrmNoDefinido : crm?.cliente === "viejo" ? colorCrm || colorCrmDefaultExistente : "");
 
   function syncParsed() {
