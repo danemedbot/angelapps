@@ -34,6 +34,7 @@ export const CEDULAS_ENDPOINT = process.env.CEDULAS_API_ENDPOINT || "https://ced
 export const SHEET_ID = process.env.GOOGLE_SHEET_ID || "1VQd6et38O5P81NGphmlAVZHy6aaqdPQvZnGCz33jRvg";
 const knownAgents = ["amairani", "amejia", "btostado", "zulay", "bperez2", "selene2", "DISTRITATI", "cristina", "diana", "marisa2", "micaela", "stefany", "moncho", "josecarlos", "katerin", "mariel", "daisy", "lupita", "juan", "pefa", "reison", "distribuidores", "gerson", "temporal"];
 const agentAliases: Record<string, string> = {
+  "alejandra pinedo": "lupita",
   "blanca perez": "bperez2",
   "blanca pérez": "bperez2",
 };
@@ -56,7 +57,13 @@ function normalizeKnownValue(value: string, options: string[]) {
   return options.find((option) => normalized.startsWith(normalizeText(option.split(" - ")[0]))) || cleanText(value);
 }
 function normalizeAgent(value: string) {
-  const clean = cleanText(value).replace(/^asesor,?\s*/i, "").replace(/^(el|la)\s+/i, "").replace(/^(lic\.?|licenciado|licenciada)\s*/i, "").trim();
+  const clean = cleanText(value)
+    .replace(/^[^\p{L}\p{N}]+/u, "")
+    .replace(/^asesor,?\s*/i, "")
+    .replace(/^(el|la)\s+/i, "")
+    .replace(/^(lic\.?|licenciado|licenciada)\s*/i, "")
+    .replace(/^[^\p{L}\p{N}]+/u, "")
+    .trim();
   if (/usuario temporal/i.test(clean)) return "temporal";
   const alias = agentAliases[normalizeText(clean)];
   if (alias) return alias;
