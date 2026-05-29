@@ -277,33 +277,9 @@ function normalizeCrmResponse(data: Record<string, unknown>) {
   return { ok: true, valor, cliente, raw };
 }
 
-async function resolveAmbiguousCrmAgent(data: Record<string, unknown>, raw: Record<string, unknown>) {
-  const originalAgent = rawString(data, ["asesor_nombre", "datos_asesor"]);
-  if (normalizeText(originalAgent) !== "la lic. alejandra pinedo" && normalizeText(originalAgent) !== "alejandra pinedo") return;
-
-  const landingUrl = rawString(data, ["landing_url"]);
-  if (!landingUrl) return;
-
-  try {
-    const response = await fetch(landingUrl, {
-      headers: { accept: "text/html,application/json", ...(CRM_API_TOKEN ? { authorization: `Bearer ${CRM_API_TOKEN}` } : {}) },
-      cache: "no-store",
-    });
-    const html = await response.text();
-    if (!response.ok) return;
-    const text = htmlText(html);
-    const cedulaMatch = text.match(/Cedula Prof\.\s*([^\s]+)/i);
-    if (!cedulaMatch) return;
-    raw.agente = digits(cedulaMatch[1]) ? "lupita" : "daisy";
-  } catch {
-    // Si el detalle ampliado falla, mantenemos el asesor que devolvió el endpoint principal.
-  }
-}
-
 export async function checkCrm(whatsapp: string, cedula: string) {
   const whatsappData = await queryCrmApi({ whatsapp });
   const whatsappResult = normalizeCrmResponse(whatsappData);
-  if (whatsappResult.cliente === "viejo") await resolveAmbiguousCrmAgent(whatsappData, whatsappResult.raw);
 
   if (whatsappResult.cliente === "viejo" || !cedula) return whatsappResult;
 
