@@ -13,6 +13,10 @@ const asignadores = ["Angel", "Antonio", "Kiara"];
 const fuentes = ["Instagram Danemed", "Facebook Danemed", "Rejeunesse - Formulario Med-Dent 2026-copy", "Instagram Pink Intimate", "Facebook Pink Intimate", "Web Pink Intimate", "Instagram Rejeunesse", "Facebook Rejeunesse", "Web Rejeunesse", "Instagram LusciousLips", "Facebook LusciousLips", "Formulario lUCIOS LIPS", "Web LusciousLips", "Instagram CursosMedEstetica", "Facebook CursosMedEstetica", "Whatsapp Danemed", "Emagister", "Formulario LAPUROON Aurora"];
 const productos = ["Rejeunesse", "Pink Intimate System", "LusciousLips", "V-Tech System", "ExoTech Gel", "SkinFill BACIO", "Cursos", "Catálogo de Productos", "Kenacort / Triamcinolona", "Renovah", "Toxina Botulínica", "Productos BCN", "Libros", "Hilos PDO", "AGF", "Lapuroon"];
 const agentes = ["amairani", "amejia", "btostado", "zulay", "bperez2", "selene2", "DISTRITATI", "cristina", "diana", "marisa2", "micaela", "stefany", "moncho", "josecarlos", "katerin", "mariel", "daisy", "lupita", "juan", "pefa", "reison", "distribuidores", "gerson", "temporal"];
+const agentAliases: Record<string, string> = {
+  "blanca perez": "bperez2",
+  "blanca pérez": "bperez2",
+};
 const colorCrmNoDefinido = "No Definido";
 const coloresCrm = ["Verde - Me ha comprado", "Amarillo - Parece que me va a comprar", "Café - Esperando respuesta", "Naranja - Ha comprado en la empresa pero a mí aún no", "Rojo - Imposible de contactar", "Gris - Nunca responde mis mensajes", "Azul - Debo contactarlo", "Rosado - Cambiarle a otro asesor", "Blanco - Contacto recuperado", "Negro - No desea ser contactado por la empresa", "Vino - Necesita curso de aplicación", "Morado - No aplica por perfil", "Magenta - CLIENTE VETADO", "Índigo - Pendiente Cédula o Carta poder", "Verde Manzana - Cliente NO INYECTABLES", "Verde oscuro - Clientes VIP", "Verde Claro - Cliente Compras Esporádicas", "Vacío", colorCrmNoDefinido];
 const colorCrmDefaultExistente = "Café - Esperando respuesta";
@@ -48,8 +52,10 @@ function normalizeKnownValue(value: string, options: string[]) {
   return options.find((option) => normalized.startsWith(normalize(option.split(" - ")[0]))) || value.trim();
 }
 function normalizeAgent(value: string) {
-  const clean = value.replace(/^asesor,?\s*(el|la)?\s*/i, "").replace(/^(lic\.?|licenciado|licenciada)\s*/i, "").trim();
+  const clean = value.replace(/^asesor,?\s*/i, "").replace(/^(el|la)\s+/i, "").replace(/^(lic\.?|licenciado|licenciada)\s*/i, "").trim();
   if (/usuario temporal/i.test(clean)) return "temporal";
+  const alias = agentAliases[normalize(clean)];
+  if (alias) return alias;
   return normalizeKnownValue(clean, agentes);
 }
 function normalizeCrmColor(value: string) {
