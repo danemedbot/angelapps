@@ -34,6 +34,8 @@ export const CEDULAS_ENDPOINT = process.env.CEDULAS_API_ENDPOINT || "https://ced
 export const SHEET_ID = process.env.GOOGLE_SHEET_ID || "1VQd6et38O5P81NGphmlAVZHy6aaqdPQvZnGCz33jRvg";
 const knownAgents = ["amairani", "amejia", "btostado", "zulay", "bperez2", "selene2", "DISTRITATI", "cristina", "diana", "marisa2", "micaela", "stefany", "moncho", "josecarlos", "katerin", "mariel", "daisy", "lupita", "juan", "pefa", "reison", "distribuidores", "gerson", "temporal"];
 const agentAliases: Record<string, string> = {
+  "alejandra guzman pinedo": "daisy",
+  "alejandra guzmán pinedo": "daisy",
   "alejandra pinedo": "lupita",
   "blanca perez": "bperez2",
   "blanca pérez": "bperez2",
