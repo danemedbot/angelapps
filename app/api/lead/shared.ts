@@ -134,10 +134,11 @@ export function normalizeLead(input: Partial<LeadPayload>): LeadPayload {
 
 export function validateLeadFields(lead: LeadPayload) {
   const errors: Record<string, string> = {};
+  const canContinueWithoutAgent = lead.crmAnterior === "SI" && lead.eraDeEseAsesor === "NO" && lead.colorCrm === "No Definido";
   if (!lead.quienAsigna) errors.quienAsigna = "Indica quién asignará.";
   if (!lead.fuente) errors.fuente = "Selecciona la fuente.";
   if (!lead.producto) errors.producto = "Selecciona el producto.";
-  if (!lead.agente) errors.agente = "Selecciona o escribe el agente.";
+  if (!lead.agente && !canContinueWithoutAgent) errors.agente = "Selecciona o escribe el agente.";
   if (lead.nombre.length < 3) errors.nombre = "Escribe el nombre completo.";
   if (lead.whatsapp.length !== 10) errors.whatsapp = "El WhatsApp debe tener exactamente 10 dígitos.";
   if (!lead.ciudad) errors.ciudad = "Escribe la ciudad.";
@@ -251,8 +252,9 @@ async function queryCrmApi(payload: { whatsapp?: string; cedula?: string }) {
     cache: "no-store",
   });
   const data = await response.json().catch(() => null) as Record<string, unknown> | null;
-  if (!response.ok || data?.ok === false) throw new Error(cleanText(data?.mensaje || data?.error) || "No se pudo consultar CRM.");
   if (!data || typeof data !== "object") throw new Error("El CRM respondió un formato inválido.");
+  const isExistingWithoutAdvisor = data?.ok === false && data?.error === "NO_ADVISOR_AVAILABLE" && rawString(data, ["cliente"]).toLowerCase() === "viejo";
+  if (!response.ok || (data?.ok === false && !isExistingWithoutAdvisor)) throw new Error(cleanText(data?.mensaje || data?.error) || "No se pudo consultar CRM.");
   return data;
 }
 

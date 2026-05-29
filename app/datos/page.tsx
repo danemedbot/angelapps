@@ -13,7 +13,8 @@ const asignadores = ["Angel", "Antonio", "Kiara"];
 const fuentes = ["Instagram Danemed", "Facebook Danemed", "Rejeunesse - Formulario Med-Dent 2026-copy", "Instagram Pink Intimate", "Facebook Pink Intimate", "Web Pink Intimate", "Instagram Rejeunesse", "Facebook Rejeunesse", "Web Rejeunesse", "Instagram LusciousLips", "Facebook LusciousLips", "Formulario lUCIOS LIPS", "Web LusciousLips", "Instagram CursosMedEstetica", "Facebook CursosMedEstetica", "Whatsapp Danemed", "Emagister", "Formulario LAPUROON Aurora"];
 const productos = ["Rejeunesse", "Pink Intimate System", "LusciousLips", "V-Tech System", "ExoTech Gel", "SkinFill BACIO", "Cursos", "Catálogo de Productos", "Kenacort / Triamcinolona", "Renovah", "Toxina Botulínica", "Productos BCN", "Libros", "Hilos PDO", "AGF", "Lapuroon"];
 const agentes = ["amairani", "amejia", "btostado", "zulay", "bperez2", "selene2", "DISTRITATI", "cristina", "diana", "marisa2", "micaela", "stefany", "moncho", "josecarlos", "katerin", "mariel", "daisy", "lupita", "juan", "pefa", "reison", "distribuidores", "gerson", "temporal"];
-const coloresCrm = ["Verde - Me ha comprado", "Amarillo - Parece que me va a comprar", "Café - Esperando respuesta", "Naranja - Ha comprado en la empresa pero a mí aún no", "Rojo - Imposible de contactar", "Gris - Nunca responde mis mensajes", "Azul - Debo contactarlo", "Rosado - Cambiarle a otro asesor", "Blanco - Contacto recuperado", "Negro - No desea ser contactado por la empresa", "Vino - Necesita curso de aplicación", "Morado - No aplica por perfil", "Magenta - CLIENTE VETADO", "Índigo - Pendiente Cédula o Carta poder", "Verde Manzana - Cliente NO INYECTABLES", "Verde oscuro - Clientes VIP", "Verde Claro - Cliente Compras Esporádicas", "Vacío"];
+const colorCrmNoDefinido = "No Definido";
+const coloresCrm = ["Verde - Me ha comprado", "Amarillo - Parece que me va a comprar", "Café - Esperando respuesta", "Naranja - Ha comprado en la empresa pero a mí aún no", "Rojo - Imposible de contactar", "Gris - Nunca responde mis mensajes", "Azul - Debo contactarlo", "Rosado - Cambiarle a otro asesor", "Blanco - Contacto recuperado", "Negro - No desea ser contactado por la empresa", "Vino - Necesita curso de aplicación", "Morado - No aplica por perfil", "Magenta - CLIENTE VETADO", "Índigo - Pendiente Cédula o Carta poder", "Verde Manzana - Cliente NO INYECTABLES", "Verde oscuro - Clientes VIP", "Verde Claro - Cliente Compras Esporádicas", "Vacío", colorCrmNoDefinido];
 const colorCrmDefaultExistente = "Café - Esperando respuesta";
 const profesionesDetectables = [
   { canonical: "Médico", aliases: ["medico"] },
@@ -142,8 +143,9 @@ export default function Home() {
   const activeContact = { ...parsed, ...Object.fromEntries(Object.entries(contact).filter(([, v]) => v)) } as Contact;
   const capturedProfessionOnly = profesionCapturada;
   const activeProfession = profesion || profesionCapturada;
+  const crmNoAdvisorAvailable = crm?.raw?.error === "NO_ADVISOR_AVAILABLE";
   const crmAgent = normalizeAgent(rawString(crm?.raw, ["agente", "asesor", "agent", "assigned_agent", "usuario", "nombre_agente", "agente_asignado", "asesor_asignado", "asesor_nombre", "datos_asesor", "vendedor", "usuario_asignado"]));
-  const crmColor = normalizeCrmColor(rawString(crm?.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead"])) || (crm?.cliente === "viejo" ? colorCrm || colorCrmDefaultExistente : "");
+  const crmColor = normalizeCrmColor(rawString(crm?.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead"])) || (crmNoAdvisorAvailable ? colorCrmNoDefinido : crm?.cliente === "viejo" ? colorCrm || colorCrmDefaultExistente : "");
 
   function syncParsed() {
     const next = parseContact(datos);
@@ -186,8 +188,13 @@ export default function Home() {
       if (!response.ok || data?.ok === false) throw new Error(data?.errors?.join(" ") || "No se pudo consultar CRM.");
       setCrm(data.crm);
       if (data.crm.cliente === "viejo") {
+        const noAdvisorAvailable = data.crm.raw?.error === "NO_ADVISOR_AVAILABLE";
         setCrmAnterior("SI");
-        setColorCrm(normalizeCrmColor(rawString(data.crm.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead"])) || colorCrmDefaultExistente);
+        setColorCrm(normalizeCrmColor(rawString(data.crm.raw, ["color", "colorCrm", "color_crm", "color en crm", "status_color", "colorcrm", "color_contacto", "color_lead"])) || (noAdvisorAvailable ? colorCrmNoDefinido : colorCrmDefaultExistente));
+        if (noAdvisorAvailable) {
+          setAgente("");
+          setContactoAsesor("NO");
+        }
         setShowCrmModal(true);
       } else {
         setCrmAnterior("NO");
@@ -242,7 +249,7 @@ export default function Home() {
     if (!quienAsigna) missing.push({ key: "quienAsigna", label: "Quién asignará" });
     if (!fuente) missing.push({ key: "fuente", label: "Fuente" });
     if (!producto) missing.push({ key: "producto", label: "Producto / Interés" });
-    if (!agente) missing.push({ key: "agente", label: "Agente" });
+    if (!agente && !crmNoAdvisorAvailable) missing.push({ key: "agente", label: "Agente" });
     if (!crmAnterior) missing.push({ key: "crmAnterior", label: "CRM Anterior" });
     if (!finalContact.nombre) missing.push({ key: "nombre", label: "Nombre" });
     if (!finalContact.whatsapp) missing.push({ key: "whatsapp", label: "WhatsApp" });
@@ -355,7 +362,7 @@ export default function Home() {
 
     {showProfessionModal && <div className="modal-backdrop"><section className={cedula?.result ? "modal wide" : "modal simple-modal"}><button className="close" type="button" onClick={() => setShowProfessionModal(false)} aria-label="Cerrar">×</button>{!cedula?.result ? <><p className="eyebrow">Consulta de profesión</p><div className="empty-state"><span className="empty-icon">×</span><h2>No se encontró información con esa cédula.</h2><p>{cedula?.source && cedula.source !== "cedulas-profesionales" ? cedula.source : "Revisa el número capturado o intenta más tarde; el servidor puede no estar respondiendo."}</p></div></> : <><p className="eyebrow">Comparativo de profesión</p><h2>Elige qué columna se usará</h2><div className="compare column-decisions"><div className={reviewSource === "capturado" ? "selected-column" : ""}><h3>Capturado</h3><ReviewLine label="Nombre" value={activeContact.nombre} /><ReviewLine label="Profesión" value={capturedProfessionOnly || "Sin profesión capturada"} /><button className="column-choice" type="button" onClick={usarCapturado}>Usar datos capturados</button></div><div className={reviewSource === "oficial" ? "selected-column" : ""}><h3>Consulta oficial</h3><ReviewLine label="Nombre" value={cedula.result.nombre || "Sin resultado"} /><ReviewLine label="Profesión" value={cedula.result.carrera ? normalizeProfessionChoice(cedula.result.carrera) : "Sin resultado"} /><button className="column-choice" type="button" onClick={usarOficial}>Usar datos oficiales</button></div></div><p className="modal-hint">Selecciona una columna completa para definir nombre y profesión.</p><div className="modal-actions"><button className="primary" disabled={!reviewSource} onClick={continuarProfesion}>Continuar</button></div></>}</section></div>}
 
-    {showCrmModal && <div className="modal-backdrop"><section className={crm?.cliente === "viejo" ? "modal" : "modal simple-modal"}><button className="close" type="button" onClick={() => setShowCrmModal(false)} aria-label="Cerrar">×</button>{crm?.cliente === "viejo" ? <><p className="eyebrow">Resultado CRM</p><h2>Contacto existente</h2><ReviewLine label="Agente asignado" value={crmAgent || "El CRM no devolvió agente"} /><ReviewLine label="Color CRM" value={crmColor || "El CRM no devolvió color"} /><p className="subtitle small">¿Desea mantener la asignación actual o reasignar este contacto?</p><div className="modal-actions"><button className="secondary" onClick={reasignar}>Reasignar</button><button className="primary" onClick={mantenerAsignacion}>Mantener asignación</button></div></> : <><p className="eyebrow">Resultado CRM</p><div className="empty-state"><span className="empty-icon">×</span><h2>El contacto no existe en CRM.</h2><p>Se marcó automáticamente CRM Anterior como NO.</p></div></>}</section></div>}
+    {showCrmModal && <div className="modal-backdrop"><section className={crm?.cliente === "viejo" ? "modal" : "modal simple-modal"}><button className="close" type="button" onClick={() => setShowCrmModal(false)} aria-label="Cerrar">×</button>{crm?.cliente === "viejo" ? crmNoAdvisorAvailable ? <><p className="eyebrow">Resultado CRM</p><h2>Contacto existente</h2><div className="empty-state"><span className="empty-icon">!</span><h2>Sí existe en CRM, pero es de un asesor que no está disponible.</h2><p>Se dejó Agente vacío, CRM Anterior en SI y “El contacto es de ese asesor” en NO.</p></div><ReviewLine label="Color CRM" value={crmColor || colorCrmNoDefinido} /><div className="modal-actions"><button className="primary" onClick={() => setShowCrmModal(false)}>Continuar</button></div></> : <><p className="eyebrow">Resultado CRM</p><h2>Contacto existente</h2><ReviewLine label="Agente asignado" value={crmAgent || "El CRM no devolvió agente"} /><ReviewLine label="Color CRM" value={crmColor || "El CRM no devolvió color"} /><p className="subtitle small">¿Desea mantener la asignación actual o reasignar este contacto?</p><div className="modal-actions"><button className="secondary" onClick={reasignar}>Reasignar</button><button className="primary" onClick={mantenerAsignacion}>Mantener asignación</button></div></> : <><p className="eyebrow">Resultado CRM</p><div className="empty-state"><span className="empty-icon">×</span><h2>El contacto no existe en CRM.</h2><p>Se marcó automáticamente CRM Anterior como NO.</p></div></>}</section></div>}
   </main>;
 }
 
